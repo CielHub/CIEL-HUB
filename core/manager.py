@@ -4,6 +4,7 @@ from core.monitor import create_monitors
 from core.memory import get_ram
 from core.dashboard import draw_dashboard
 from core.watchdog import Watchdog
+from core.recovery import force_stop
 
 
 class Manager:
@@ -31,7 +32,29 @@ class Manager:
         self.running = False
 
     # ==========================================
-    # Dashboard
+    # Monitor Engine
+    # ==========================================
+
+    def update_monitors(self):
+
+        for monitor in self.monitors:
+
+            # Countdown Recovery
+            monitor.tick()
+
+            # Process Detection
+            monitor.update()
+
+    # ==========================================
+    # Watchdog Engine
+    # ==========================================
+
+    def update_watchdog(self):
+
+        self.watchdog.check()
+
+    # ==========================================
+    # Dashboard Engine
     # ==========================================
 
     def update_dashboard(self):
@@ -45,20 +68,6 @@ class Manager:
         )
 
     # ==========================================
-    # Monitor Update
-    # ==========================================
-
-    def update_monitors(self):
-
-        for monitor in self.monitors:
-
-            # Countdown recovery
-            monitor.tick()
-
-            # Update process status
-            monitor.update()
-
-    # ==========================================
     # Main Loop
     # ==========================================
 
@@ -70,16 +79,16 @@ class Manager:
 
             while self.running:
 
-                # 1. Update semua monitor
+                # Update semua clone
                 self.update_monitors()
 
-                # 2. Jalankan watchdog
-                self.watchdog.check()
+                # Recovery Engine
+                self.update_watchdog()
 
-                # 3. Refresh dashboard
+                # Dashboard
                 self.update_dashboard()
 
-                # 4. Refresh tiap 1 detik
+                # Refresh 1 detik
                 time.sleep(1)
 
         except KeyboardInterrupt:
@@ -93,6 +102,17 @@ class Manager:
     def stop(self):
 
         self.running = False
+
+        # Kill semua Roblox
+        for package in self.packages:
+
+            try:
+
+                force_stop(package)
+
+            except Exception:
+
+                pass
 
     # ==========================================
     # Getter

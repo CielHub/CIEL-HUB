@@ -1,4 +1,3 @@
-from core.monitor import STATUS_OFFLINE
 from core.recovery import recover
 
 
@@ -37,33 +36,37 @@ class Watchdog:
         for monitor in self.monitors:
 
             # =====================================
+            # Skip jika sedang recovery
+            # =====================================
+
+            if monitor.recovering():
+                pass
+
+            # =====================================
             # Auto Recovery berdasarkan Timer
             # =====================================
 
-            if (
+            elif (
                 reconnect_minutes > 0
-                and not monitor.is_recovering
-            ):
-
-                if (
-                    monitor.recover_elapsed()
-                    >= reconnect_minutes * 60
-                ):
-
-                    monitor.start_recovery(delay)
-
-                    continue
-
-            # =====================================
-            # Offline Detection
-            # =====================================
-
-            if (
-                monitor.status == STATUS_OFFLINE
-                and not monitor.is_recovering
+                and monitor.recover_elapsed()
+                >= reconnect_minutes * 60
             ):
 
                 monitor.start_recovery(delay)
+
+            # =====================================
+            # Auto Recovery jika Offline
+            # =====================================
+
+            elif monitor.offline():
+
+                monitor.start_recovery(delay)
+
+            # =====================================
+            # Clone masih Farming
+            # =====================================
+
+            else:
 
                 continue
 

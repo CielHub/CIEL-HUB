@@ -20,17 +20,33 @@ class CloneMonitor:
         self.last_update = time.time()
         self.last_recover = time.time()
 
-        # ==========================
+        # ==========================================
+        # Runtime State
+        # ==========================================
+
+        self.is_online = False
+        self.is_launching = False
+        self.is_joining = False
+
+        self.last_seen = time.time()
+
+        # ==========================================
+        # Statistics
+        # ==========================================
+
+        self.offline_count = 0
+        self.recovery_count = 0
+        self.launch_count = 0
+        self.join_count = 0
+
+        # ==========================================
         # Recovery State Machine
-        # ==========================
+        # ==========================================
 
         self.recovery_remaining = 0
 
-        # True jika sedang recovery
         self.is_recovering = False
 
-        # False = belum menjalankan launcher
-        # True = launcher sudah dijalankan
         self.recovery_started = False
 
     # ==========================================
@@ -68,8 +84,11 @@ class CloneMonitor:
         self.status = STATUS_RECOVER
 
         self.is_recovering = True
-
         self.recovery_started = False
+
+        self.is_online = False
+        self.is_launching = False
+        self.is_joining = False
 
         self.recovery_remaining = seconds
 
@@ -81,7 +100,6 @@ class CloneMonitor:
             return
 
         if self.recovery_remaining > 0:
-
             self.recovery_remaining -= 1
 
     def recovery_finished(self):
@@ -99,10 +117,11 @@ class CloneMonitor:
     def finish_recovery(self):
 
         self.is_recovering = False
-
         self.recovery_started = False
 
         self.recovery_remaining = 0
+
+        self.recovery_count += 1
 
         self.reset_recover_timer()
 
@@ -111,7 +130,6 @@ class CloneMonitor:
     def cancel_recovery(self):
 
         self.is_recovering = False
-
         self.recovery_started = False
 
         self.recovery_remaining = 0
@@ -125,24 +143,48 @@ class CloneMonitor:
     def set_loading(self):
 
         self.status = STATUS_LOADING
+
+        self.is_online = True
+        self.is_launching = True
+        self.is_joining = False
+
+        self.launch_count += 1
+
+        self.last_seen = time.time()
         self.last_update = time.time()
 
     def set_farming(self):
 
         self.status = STATUS_FARMING
+
+        self.is_online = True
+        self.is_launching = False
+        self.is_joining = False
+
+        self.last_seen = time.time()
         self.last_update = time.time()
 
     def set_recover(self):
 
         self.status = STATUS_RECOVER
+
+        self.is_online = False
+
         self.last_update = time.time()
 
     def set_offline(self):
 
         self.status = STATUS_OFFLINE
+
+        self.is_online = False
+        self.is_launching = False
+        self.is_joining = False
+
+        self.offline_count += 1
+
         self.last_update = time.time()
 
-    # ==========================================
+     # ==========================================
     # Process Detection
     # ==========================================
 
@@ -173,7 +215,6 @@ class CloneMonitor:
 
     def update(self):
 
-        # Saat recovery jangan ubah status
         if self.is_recovering:
             return
 
@@ -182,14 +223,28 @@ class CloneMonitor:
         if alive:
 
             if self.status != STATUS_FARMING:
-
                 self.set_farming()
 
         else:
 
             if self.status != STATUS_OFFLINE:
-
                 self.set_offline()
+
+    # ==========================================
+    # Helper
+    # ==========================================
+
+    def online(self):
+
+        return self.is_online
+
+    def offline(self):
+
+        return not self.is_online
+
+    def recovering(self):
+
+        return self.is_recovering
 
 
 # ==========================================

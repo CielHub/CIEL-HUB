@@ -1,3 +1,20 @@
+import subprocess
+
+def force_stop(package):
+
+    result = subprocess.run(
+        [
+            "am",
+            "force-stop",
+            package,
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    return result.returncode == 0
+
+
 def recover(
     package,
     config,
@@ -12,7 +29,9 @@ def recover(
 
     monitor.set_loading()
 
-    if not launcher(package):
+    launched = launcher(package)
+
+    if not launched:
 
         monitor.cancel_recovery()
 
@@ -22,16 +41,22 @@ def recover(
     # Join Private Server
     # ==========================================
 
-    if not joiner(package, config):
+    joined = joiner(
+        package,
+        config,
+    )
+
+    if not joined:
 
         monitor.cancel_recovery()
 
         return False
 
     # ==========================================
-    # Success
+    # Recovery Success
     # ==========================================
 
     monitor.finish_recovery()
 
     return True
+  

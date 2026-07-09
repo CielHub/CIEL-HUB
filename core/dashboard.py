@@ -1,6 +1,6 @@
 import os
 
-WIDTH = 47
+WIDTH = 58
 
 # ==========================================
 # ANSI COLOR
@@ -16,88 +16,75 @@ RED = "\033[91m"
 WHITE = "\033[97m"
 
 # ==========================================
-# TERMINAL
+# Terminal
 # ==========================================
 
 def clear():
     os.system("clear")
 
 
-def blue(text):
-    return f"{BLUE}{text}{RESET}"
+def color(text, ansi):
+    return f"{ansi}{text}{RESET}"
 
 
-def green(text):
-    return f"{GREEN}{text}{RESET}"
+def status_text(monitor):
+
+    if monitor.status.startswith("[OK]"):
+        return color("🟢 Farming", GREEN)
+
+    if monitor.status.startswith("[RC]"):
+        return color("🟡 Recover", YELLOW)
+
+    if monitor.status.startswith("[LO]"):
+        return color("🔵 Loading", CYAN)
+
+    if monitor.status.startswith("[ER]"):
+        return color("🔴 Offline", RED)
+
+    return monitor.status
 
 
-def yellow(text):
-    return f"{YELLOW}{text}{RESET}"
-
-
-def cyan(text):
-    return f"{CYAN}{text}{RESET}"
-
-
-def red(text):
-    return f"{RED}{text}{RESET}"
-
-
-def color_status(status):
-
-    if "[OK]" in status:
-        return green(status)
-
-    if "[RC]" in status:
-        return yellow(status)
-
-    if "[LO]" in status:
-        return cyan(status)
-
-    if "[ER]" in status:
-        return red(status)
-
-    return status
-
-
-def line(left="", right=""):
+def line(text=""):
 
     print(
-        blue("║")
-        + f" {left:<{WIDTH-3}}"
-        + blue("║")
+        color("║", BLUE)
+        + f" {text:<{WIDTH-2}}"
+        + color("║", BLUE)
     )
 
 
 # ==========================================
-# DASHBOARD
+# Dashboard
 # ==========================================
 
 def draw_dashboard(monitors, ram_used, ram_total):
 
     clear()
 
-    percent = (
-        (ram_used / ram_total) * 100
-        if ram_total
-        else 0
-    )
+    percent = 0
 
-    print(blue("╔══════════════════════════════════════════════╗"))
+    if ram_total:
+        percent = (ram_used / ram_total) * 100
 
-    line(blue("🚀 CIEL-HUB v4.0"))
+    online = sum(m.online() for m in monitors)
+    offline = sum(m.offline() for m in monitors)
+    recovering = sum(m.recovering() for m in monitors)
 
-    print(blue("╠══════════════════════════════════════════════╣"))
+    print(color("╔" + "═" * WIDTH + "╗", BLUE))
+
+    line(color("🚀 CIEL-HUB v4.1", WHITE))
+
+    print(color("╠" + "═" * WIDTH + "╣", BLUE))
 
     line(
-        f"RAM   : {ram_used:.2f} / {ram_total:.2f} GB ({percent:.0f}%)"
+        f"RAM      : {ram_used:.2f}/{ram_total:.2f} GB ({percent:.0f}%)"
     )
 
     line(
-        f"Clone : {len(monitors)} / {len(monitors)}"
+        f"Online   : {online} | Offline : {offline} | Recover : {recovering}"
     )
 
-    print(blue("╠══════════════════════════════════════════════╣"))
+    print(color("╠" + "═" * WIDTH + "╣", BLUE))
 
     for monitor in monitors:
 
@@ -106,29 +93,35 @@ def draw_dashboard(monitors, ram_used, ram_total):
             "",
         )
 
-        # ==========================
-        # TIMER
-        # ==========================
+        if monitor.recovering():
 
-        if "[RC]" in monitor.status:
-
-            timer = (
-                f"00:00:{monitor.recovery_remaining:02}"
-            )
+            timer = f"{monitor.recovery_remaining:02}s"
 
         else:
 
             timer = monitor.uptime()
 
-        status = color_status(monitor.status)
+        status = status_text(monitor)
 
-        # nama
-        print(
-            blue("║")
-            + f" {name:<8}"
-            + f"{status:<22}"
-            + f"{timer:>10} "
-            + blue("║")
+        plain_status = (
+            "🟢 Farming"
+            if monitor.status.startswith("[OK]")
+            else "🟡 Recover"
+            if monitor.status.startswith("[RC]")
+            else "🔵 Loading"
+            if monitor.status.startswith("[LO]")
+            else "🔴 Offline"
         )
 
-    print(blue("╚══════════════════════════════════════════════╝"))
+        padding = " " * max(1, 13 - len(plain_status))
+
+        print(
+            color("║", BLUE)
+            + f" {name:<10}"
+            + status
+            + padding
+            + f"{timer:>10} "
+            + color("║", BLUE)
+        )
+
+    print(color("╚" + "═" * WIDTH + "╝", BLUE))
