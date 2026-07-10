@@ -21,7 +21,6 @@ ROBLOX_KEYWORDS = (
 def clear():
     os.system("clear")
 
-
 def banner():
     clear()
 
@@ -34,7 +33,7 @@ def banner():
  ╚═════╝╚═╝╚══════╝╚══════╝    ╚═╝  ╚═╝ ╚═════╝ ╚═════╝
 """)
 
-    print(f"                 {VERSION} (Termux Edition)\n")
+    print(f"                 {VERSION} (CielxChel)\n")
 
 
 def info(msg):
@@ -102,7 +101,7 @@ DEFAULT_CONFIG = {
     "packages": [],
     "reconnect_minutes": 5,
     "force_close_delay": 30,
-    "staggered_delay": 30, # Jeda antar clone (detik)
+    "staggered_delay": 30,
 
     "join_method": "private_server",
     "private_server_link": "",
@@ -503,97 +502,118 @@ def join_private_server(package, config):
 # ==========================================
 
 def main():
+    try:
+        banner()
 
-    banner()
+        # ==========================
+        # Load Config
+        # ==========================
 
-    # ==========================
-    # Load Config
-    # ==========================
+        config = load_config()
 
-    config = load_config()
+        config = settings_menu(config)
+        config = join_method_menu(config)
 
-    config = settings_menu(config)
-    config = join_method_menu(config)
+        print()
 
-    print()
+        # ==========================
+        # Scan Roblox
+        # ==========================
 
-    # ==========================
-    # Scan Roblox
-    # ==========================
+        info("Memindai package Roblox...")
 
-    info("Memindai package Roblox...")
+        packages = scan_packages()
 
-    packages = scan_packages()
+        if not packages:
+            error("Tidak ada package Roblox ditemukan.")
+            return
 
-    if not packages:
-        error("Tidak ada package Roblox ditemukan.")
-        return
+        success(f"Ditemukan {len(packages)} package.")
 
-    success(f"Ditemukan {len(packages)} package.")
+        title("DAFTAR APLIKASI ROBLOX")
 
-    title("DAFTAR APLIKASI ROBLOX")
+        for index, package in enumerate(packages, start=1):
+            print(f"[{index}] {package}")
 
-    for index, package in enumerate(packages, start=1):
-        print(f"[{index}] {package}")
+        # ==========================
+        # Pilih Package
+        # ==========================
 
-    # ==========================
-    # Pilih Package
-    # ==========================
+        selected = select_packages(packages)
 
-    selected = select_packages(packages)
+        config["packages"] = selected
+        save_config(config)
 
-    config["packages"] = selected
-    save_config(config)
+        title("PACKAGE TERPILIH")
 
-    title("PACKAGE TERPILIH")
+        for package in selected:
+            success(package)
 
-    for package in selected:
-        success(package)
+        print()
 
-    print()
-
-    # ==========================
-    # Launch & Join (Staggered)
-    # ==========================
-    
-    total_clones = len(selected)
-
-    for i, package in enumerate(selected):
+        # ==========================
+        # Launch & Join (Staggered)
+        # ==========================
         
-        if smart_launch(package):
-            join_private_server(package, config)
+        total_clones = len(selected)
+
+        for i, package in enumerate(selected):
             
-            # Logic Staggered Launching
-            if i < total_clones - 1:
-                delay = config.get("staggered_delay", 30)
-                print()
-                info(f"Menunggu {delay} detik agar {package} masuk ke in-game...")
+            if smart_launch(package):
+                join_private_server(package, config)
                 
-                # Bikin efek hitung mundur di satu baris
-                for remain in range(delay, 0, -1):
-                    print(f"\r[*] Lanjut ke clone berikutnya dalam {remain} detik...  ", end="", flush=True)
-                    time.sleep(1)
+                # Logic Staggered Launching
+                if i < total_clones - 1:
+                    delay = config.get("staggered_delay", 30)
+                    print()
+                    info(f"Menunggu {delay} detik agar {package} masuk ke in-game...")
+                    
+                    # Bikin efek hitung mundur di satu baris
+                    for remain in range(delay, 0, -1):
+                        print(f"\r[*] Lanjut ke clone berikutnya dalam {remain} detik...  ", end="", flush=True)
+                        time.sleep(1)
+                    
+                    # Bersihin baris bekas hitung mundur
+                    print("\r" + " " * 50 + "\r", end="", flush=True)
+                    print()
+
+        success("Semua clone berhasil dijalankan.")
+
+        # ==========================
+        # Start Manager
+        # ==========================
+
+        manager = Manager(
+            selected,
+            config,
+            smart_launch,
+            join_private_server,
+        )
+
+        manager.start()
+
+    except KeyboardInterrupt:
+        print()
+        print("\033[93m[!] Program dihentikan paksa oleh user (Ctrl+C).\033[0m")
+        print("\033[94m[*] Menghentikan seluruh clone Roblox yang terdeteksi...\033[0m")
+        
+        # Cari package apa saja yang harus di-kill pas interupsi terjadi
+        try:
+            packages_to_kill = selected
+        except NameError:
+            try:
+                packages_to_kill = config.get("packages", [])
+            except NameError:
+                packages_to_kill = []
                 
-                # Bersihin baris bekas hitung mundur
-                print("\r" + " " * 50 + "\r", end="", flush=True)
-                print()
-
-    success("Semua clone berhasil dijalankan.")
-
-    # ==========================
-    # Start Manager
-    # ==========================
-
-    manager = Manager(
-        selected,
-        config,
-        smart_launch,
-        join_private_server,
-    )
-
-    manager.start()
+        for package in packages_to_kill:
+            try:
+                subprocess.run(["am", "force-stop", package], capture_output=True, text=True)
+            except Exception:
+                pass
+                
+        print("\033[92m[+] Semua clone berhasil di-force stop. Keluar bersih.\033[0m")
 
 
 if __name__ == "__main__":
     main()
-    
