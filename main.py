@@ -1,6 +1,8 @@
 import os
 import subprocess
 import time
+import json
+from pathlib import Path
 
 from core.manager import Manager
 
@@ -93,9 +95,6 @@ def scan_packages():
 # CONFIG
 # ==========================================
 
-import json
-from pathlib import Path
-
 CONFIG_FILE = Path.home() / ".cielhub_config.json"
 
 
@@ -103,6 +102,7 @@ DEFAULT_CONFIG = {
     "packages": [],
     "reconnect_minutes": 5,
     "force_close_delay": 30,
+    "staggered_delay": 30, # Jeda antar clone (detik)
 
     "join_method": "private_server",
     "private_server_link": "",
@@ -145,12 +145,17 @@ def settings_menu(config):
 
     print(
         f"Reconnect saat ini      : "
-        f"{config['reconnect_minutes']} menit"
+        f"{config.get('reconnect_minutes', 5)} menit"
     )
 
     print(
         f"Force Close Delay       : "
-        f"{config['force_close_delay']} detik"
+        f"{config.get('force_close_delay', 30)} detik"
+    )
+    
+    print(
+        f"Staggered Delay         : "
+        f"{config.get('staggered_delay', 30)} detik"
     )
 
     print()
@@ -168,21 +173,12 @@ def settings_menu(config):
     title("AUTO RECONNECT")
 
     while True:
-
         try:
-
-            reconnect = int(
-                input(
-                    "Reconnect (menit, 0=OFF): "
-                )
-            )
-
+            reconnect = int(input("Reconnect (menit, 0=OFF): "))
             if reconnect >= 0:
                 break
-
         except ValueError:
             pass
-
         warning("Masukkan angka yang valid.")
 
     print()
@@ -190,25 +186,30 @@ def settings_menu(config):
     title("FORCE CLOSE DELAY")
 
     while True:
-
         try:
-
-            delay = int(
-                input(
-                    "Delay (detik): "
-                )
-            )
-
+            delay = int(input("Delay sebelum kill (detik): "))
             if delay >= 0:
                 break
-
         except ValueError:
             pass
+        warning("Masukkan angka yang valid.")
+        
+    print()
 
+    title("STAGGERED LAUNCH DELAY")
+
+    while True:
+        try:
+            stagger = int(input("Jeda antar clone in-game (detik): "))
+            if stagger >= 0:
+                break
+        except ValueError:
+            pass
         warning("Masukkan angka yang valid.")
 
     config["reconnect_minutes"] = reconnect
     config["force_close_delay"] = delay
+    config["staggered_delay"] = stagger
 
     save_config(config)
 
@@ -229,9 +230,8 @@ def join_method_menu(config):
 
     title("METODE JOIN")
 
-    if config["join_method"] == "private_server":
+    if config.get("join_method") == "private_server":
         current = "Private Server"
-
     else:
         current = "Place ID"
 
@@ -463,10 +463,10 @@ def wait_until_foreground(package, timeout=20):
 
 def join_private_server(package, config):
 
-    if config["join_method"] != "private_server":
+    if config.get("join_method") != "private_server":
         return
 
-    link = config["private_server_link"].strip()
+    link = config.get("private_server_link", "").strip()
 
     if not link:
         warning("Private Server Link kosong.")
@@ -475,7 +475,7 @@ def join_private_server(package, config):
     info("Menunggu Roblox siap...")
     time.sleep(8)
 
-    info("Join Private Server...")
+    info(f"Join Private Server untuk {package}...")
 
     result = subprocess.run(
         [
@@ -492,16 +492,12 @@ def join_private_server(package, config):
     )
 
     if result.returncode == 0:
-        success("Berhasil Join Private Server.")
+        success("Berhasil mengirim perintah Join Private Server.")
         return True
 
     error(result.stderr)
     return False
   
-# ==========================================
-# MAIN
-# ==========================================
-
 # ==========================================
 # MAIN
 # ==========================================
@@ -557,14 +553,30 @@ def main():
     print()
 
     # ==========================
-    # Launch & Join
+    # Launch & Join (Staggered)
     # ==========================
+    
+    total_clones = len(selected)
 
-    for package in selected:
-
+    for i, package in enumerate(selected):
+        
         if smart_launch(package):
-
             join_private_server(package, config)
+            
+            # Logic Staggered Launching
+            if i < total_clones - 1:
+                delay = config.get("staggered_delay", 30)
+                print()
+                info(f"Menunggu {delay} detik agar {package} masuk ke in-game...")
+                
+                # Bikin efek hitung mundur di satu baris
+                for remain in range(delay, 0, -1):
+                    print(f"\r[*] Lanjut ke clone berikutnya dalam {remain} detik...  ", end="", flush=True)
+                    time.sleep(1)
+                
+                # Bersihin baris bekas hitung mundur
+                print("\r" + " " * 50 + "\r", end="", flush=True)
+                print()
 
     success("Semua clone berhasil dijalankan.")
 
@@ -584,3 +596,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
