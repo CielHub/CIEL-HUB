@@ -6,7 +6,7 @@ from pathlib import Path
 
 from core.manager import Manager
 
-VERSION = "v4"
+VERSION = "vULTIMA"
 
 ROBLOX_KEYWORDS = (
     "roblox",
@@ -34,7 +34,7 @@ def banner():
  ╚═════╝╚═╝╚══════╝╚══════╝    ╚═╝  ╚═╝ ╚═════╝ ╚═════╝
 """)
 
-    print(f"                 {VERSION} (Termux Edition)\n")
+    print(f"                 {VERSION} (TESTAROSSA)\n")
 
 
 def info(msg):
@@ -366,7 +366,6 @@ def select_packages(packages):
 def clear_cache(package):
     info(f"Membersihkan cache {package}...")
     
-    # DEVNULL wajib dipakai supaya command Root (su) ga ngerusak layout teks Termux
     result = subprocess.run(
         ["su", "-c", f"rm -rf /data/data/{package}/cache/*"],
         capture_output=True,
@@ -538,62 +537,48 @@ def join_private_server(package, config):
 # ==========================================
 
 def main():
-    # Reset TTY state Termux biar text ga loncat/miring (Staircase effect)
+    # Reset TTY state Termux biar text ga loncat/miring
     os.system("stty sane")
     
+    banner()
+
+    # ==========================
+    # Load Config & Menus
+    # ==========================
+    config = load_config()
+    config = settings_menu(config)
+    config = join_method_menu(config)
+    print()
+
+    # ==========================
+    # Scan & Select
+    # ==========================
+    info("Memindai package Roblox...")
+    packages = scan_packages()
+
+    if not packages:
+        error("Tidak ada package Roblox ditemukan.")
+        return
+
+    success(f"Ditemukan {len(packages)} package.")
+    title("DAFTAR APLIKASI ROBLOX")
+    for index, package in enumerate(packages, start=1):
+        print(f"[{index}] {package}")
+
+    selected = select_packages(packages)
+    config["packages"] = selected
+    save_config(config)
+
+    title("PACKAGE TERPILIH")
+    for package in selected:
+        success(package)
+    print()
+
+    # ==========================
+    # Launch & Join (Staggered)
+    # Mulai dari sini fitur Ctrl+C buat nge-kill diaktifkan
+    # ==========================
     try:
-        banner()
-
-        # ==========================
-        # Load Config
-        # ==========================
-
-        config = load_config()
-
-        config = settings_menu(config)
-        config = join_method_menu(config)
-
-        print()
-
-        # ==========================
-        # Scan Roblox
-        # ==========================
-
-        info("Memindai package Roblox...")
-
-        packages = scan_packages()
-
-        if not packages:
-            error("Tidak ada package Roblox ditemukan.")
-            return
-
-        success(f"Ditemukan {len(packages)} package.")
-
-        title("DAFTAR APLIKASI ROBLOX")
-
-        for index, package in enumerate(packages, start=1):
-            print(f"[{index}] {package}")
-
-        # ==========================
-        # Pilih Package
-        # ==========================
-
-        selected = select_packages(packages)
-
-        config["packages"] = selected
-        save_config(config)
-
-        title("PACKAGE TERPILIH")
-
-        for package in selected:
-            success(package)
-
-        print()
-
-        # ==========================
-        # Launch & Join (Staggered)
-        # ==========================
-        
         total_clones = len(selected)
 
         for i, package in enumerate(selected):
@@ -601,61 +586,48 @@ def main():
             if smart_launch(package):
                 join_private_server(package, config)
                 
-                # Logic Staggered Launching
                 if i < total_clones - 1:
                     delay = config.get("staggered_delay", 30)
                     print()
                     info(f"Menunggu {delay} detik agar {package} masuk ke in-game...")
                     
-                    # Bikin efek hitung mundur di satu baris
                     for remain in range(delay, 0, -1):
                         print(f"\r\033[94m[*] Lanjut ke clone berikutnya dalam {remain} detik...\033[0m  ", end="", flush=True)
                         time.sleep(1)
                     
-                    # Bersihin baris bekas hitung mundur
                     print("\r" + " " * 60 + "\r", end="", flush=True)
                     print()
 
         success("Semua clone berhasil dijalankan.")
 
-        # ==========================
         # Start Manager
-        # ==========================
-
         manager = Manager(
             selected,
             config,
             smart_launch,
             join_private_server,
         )
-
         manager.start()
+        
+        # Keluar normal (opsional)
+        os.system("stty sane")
 
     except KeyboardInterrupt:
+        # Menangani Ctrl+C hanya saat proses launching atau di dashboard
         print()
         print("\033[93m[!] Program dihentikan paksa oleh user (Ctrl+C).\033[0m")
-        print("\033[94m[*] Menghentikan seluruh clone Roblox yang terdeteksi...\033[0m")
+        print("\033[94m[*] Menghentikan seluruh clone Roblox...\033[0m")
         
-        try:
-            packages_to_kill = selected
-        except NameError:
-            try:
-                packages_to_kill = config.get("packages", [])
-            except NameError:
-                packages_to_kill = []
-                
-        for package in packages_to_kill:
+        for package in selected:
             try:
                 subprocess.run(["am", "force-stop", package], capture_output=True, text=True)
             except Exception:
                 pass
                 
         print("\033[92m[+] Semua clone berhasil di-force stop. Keluar bersih.\033[0m")
-        
-        # Reset ulang sebelum exit
         os.system("stty sane")
 
 
 if __name__ == "__main__":
     main()
-            
+    
