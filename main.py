@@ -21,6 +21,7 @@ ROBLOX_KEYWORDS = (
 def clear():
     os.system("clear")
 
+
 def banner():
     clear()
 
@@ -33,7 +34,7 @@ def banner():
  ╚═════╝╚═╝╚══════╝╚══════╝    ╚═╝  ╚═╝ ╚═════╝ ╚═════╝
 """)
 
-    print(f"                 {VERSION} (CielxChel)\n")
+    print(f"                 {VERSION} (JAWA IRENG)\n")
 
 
 def info(msg):
@@ -41,19 +42,19 @@ def info(msg):
 
 
 def success(msg):
-    print(f"[+] {msg}")
+    print(f"\033[92m[+] {msg}\033[0m")
 
 
 def warning(msg):
-    print(f"[!] {msg}")
+    print(f"\033[93m[!] {msg}\033[0m")
 
 
 def error(msg):
-    print(f"[-] {msg}")
+    print(f"\033[91m[-] {msg}\033[0m")
 
 
 def title(text):
-    print(f"\n=== {text} ===\n")
+    print(f"\n\033[96m=== {text} ===\033[0m\n")
 
 
 # ==========================================
@@ -102,6 +103,7 @@ DEFAULT_CONFIG = {
     "reconnect_minutes": 5,
     "force_close_delay": 30,
     "staggered_delay": 30,
+    "auto_clear_cache": False,
 
     "join_method": "private_server",
     "private_server_link": "",
@@ -156,6 +158,12 @@ def settings_menu(config):
         f"Staggered Delay         : "
         f"{config.get('staggered_delay', 30)} detik"
     )
+    
+    status_cache = "ON" if config.get("auto_clear_cache") else "OFF"
+    print(
+        f"Auto Clear Cache (Root) : "
+        f"{status_cache}"
+    )
 
     print()
 
@@ -205,10 +213,17 @@ def settings_menu(config):
         except ValueError:
             pass
         warning("Masukkan angka yang valid.")
+        
+    print()
+    
+    title("AUTO CLEAR CACHE (ROOT REQUIRED)")
+    ans_cache = input("Aktifkan fitur bersihin cache tiap launch? (y/n): ").strip().lower()
+    auto_cache = True if ans_cache == "y" else False
 
     config["reconnect_minutes"] = reconnect
     config["force_close_delay"] = delay
     config["staggered_delay"] = stagger
+    config["auto_clear_cache"] = auto_cache
 
     save_config(config)
 
@@ -348,6 +363,22 @@ def select_packages(packages):
 # LAUNCHER
 # ==========================================
 
+def clear_cache(package):
+    info(f"Membersihkan cache {package}...")
+    
+    # Harus pakai su (root) biar data akun ga ikut kehapus
+    result = subprocess.run(
+        ["su", "-c", f"rm -rf /data/data/{package}/cache/*"],
+        capture_output=True,
+        text=True,
+    )
+    
+    if result.returncode == 0:
+        success(f"Cache {package} berhasil dibersihkan.")
+    else:
+        warning(f"Gagal bersihin cache (Pastikan punya akses Root).")
+
+
 def launch_package(package):
     info(f"Menjalankan {package}...")
 
@@ -424,6 +455,11 @@ def is_running(package):
 
 
 def smart_launch(package):
+    # Load config di dalam sini biar recovery.py tetep bisa pakai fungsi ini tanpa error
+    cfg = load_config()
+    
+    if cfg.get("auto_clear_cache"):
+        clear_cache(package)
 
     if not launch_package(package):
         return False
@@ -570,11 +606,11 @@ def main():
                     
                     # Bikin efek hitung mundur di satu baris
                     for remain in range(delay, 0, -1):
-                        print(f"\r[*] Lanjut ke clone berikutnya dalam {remain} detik...  ", end="", flush=True)
+                        print(f"\r\033[94m[*] Lanjut ke clone berikutnya dalam {remain} detik...\033[0m  ", end="", flush=True)
                         time.sleep(1)
                     
                     # Bersihin baris bekas hitung mundur
-                    print("\r" + " " * 50 + "\r", end="", flush=True)
+                    print("\r" + " " * 60 + "\r", end="", flush=True)
                     print()
 
         success("Semua clone berhasil dijalankan.")
@@ -597,7 +633,6 @@ def main():
         print("\033[93m[!] Program dihentikan paksa oleh user (Ctrl+C).\033[0m")
         print("\033[94m[*] Menghentikan seluruh clone Roblox yang terdeteksi...\033[0m")
         
-        # Cari package apa saja yang harus di-kill pas interupsi terjadi
         try:
             packages_to_kill = selected
         except NameError:
@@ -617,3 +652,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+        
