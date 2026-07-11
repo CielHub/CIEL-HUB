@@ -185,13 +185,12 @@ class CloneMonitor:
         self.last_update = time.time()
 
     # ==========================================
-    # Process Detection (FIXED)
+    # Process Detection
     # ==========================================
 
     def process_alive(self):
         try:
-            # Ganti dumpsys pakai pidof dengan akses root (su)
-            # Bakal return Process ID misal "15432" kalau idup, dan kosong kalau mati
+            # Tambahan DEVNULL supaya command Root ga ngerusak layout dashboard
             result = subprocess.run(
                 [
                     "su",
@@ -201,9 +200,9 @@ class CloneMonitor:
                 capture_output=True,
                 text=True,
                 timeout=5,
+                stdin=subprocess.DEVNULL,
             )
 
-            # Kalau outputnya ngga kosong, berarti gamenya beneran masih jalan di CPU
             return bool(result.stdout.strip())
 
         except Exception:
