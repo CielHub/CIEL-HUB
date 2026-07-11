@@ -6,7 +6,7 @@ from pathlib import Path
 
 from core.manager import Manager
 
-VERSION = "vULTIMA"
+VERSION = "ULTIMA"
 
 ROBLOX_KEYWORDS = (
     "roblox",
@@ -34,7 +34,7 @@ def banner():
  ╚═════╝╚═╝╚══════╝╚══════╝    ╚═╝  ╚═╝ ╚═════╝ ╚═════╝
 """)
 
-    print(f"                 {VERSION} (TESTAROSSA)\n")
+    print(f"                 {VERSION} (Tempest Edition)\n")
 
 
 def info(msg):
@@ -104,6 +104,7 @@ DEFAULT_CONFIG = {
     "force_close_delay": 30,
     "staggered_delay": 30,
     "auto_clear_cache": False,
+    "discord_webhook": "", # Konfigurasi baru
 
     "join_method": "private_server",
     "private_server_link": "",
@@ -165,6 +166,12 @@ def settings_menu(config):
         f"{status_cache}"
     )
 
+    webhook_status = "Tersimpan" if config.get("discord_webhook") else "Kosong"
+    print(
+        f"Discord Webhook URL     : "
+        f"{webhook_status}"
+    )
+
     print()
 
     answer = input(
@@ -219,11 +226,18 @@ def settings_menu(config):
     title("AUTO CLEAR CACHE (ROOT REQUIRED)")
     ans_cache = input("Aktifkan fitur bersihin cache tiap launch? (y/n): ").strip().lower()
     auto_cache = True if ans_cache == "y" else False
+    
+    print()
+    
+    title("DISCORD WEBHOOK NOTIFICATION")
+    ans_webhook = input("Masukkan URL Webhook Discord (Kosongkan jika tidak pakai):\n> ").strip()
 
     config["reconnect_minutes"] = reconnect
     config["force_close_delay"] = delay
     config["staggered_delay"] = stagger
     config["auto_clear_cache"] = auto_cache
+    if ans_webhook:
+        config["discord_webhook"] = ans_webhook
 
     save_config(config)
 
@@ -537,7 +551,6 @@ def join_private_server(package, config):
 # ==========================================
 
 def main():
-    # Reset TTY state Termux biar text ga loncat/miring
     os.system("stty sane")
     
     banner()
@@ -576,7 +589,6 @@ def main():
 
     # ==========================
     # Launch & Join (Staggered)
-    # Mulai dari sini fitur Ctrl+C buat nge-kill diaktifkan
     # ==========================
     try:
         total_clones = len(selected)
@@ -609,11 +621,9 @@ def main():
         )
         manager.start()
         
-        # Keluar normal (opsional)
         os.system("stty sane")
 
     except KeyboardInterrupt:
-        # Menangani Ctrl+C hanya saat proses launching atau di dashboard
         print()
         print("\033[93m[!] Program dihentikan paksa oleh user (Ctrl+C).\033[0m")
         print("\033[94m[*] Menghentikan seluruh clone Roblox...\033[0m")
