@@ -184,29 +184,29 @@ class CloneMonitor:
 
         self.last_update = time.time()
 
-     # ==========================================
-    # Process Detection
+    # ==========================================
+    # Process Detection (FIXED)
     # ==========================================
 
     def process_alive(self):
-
         try:
-
+            # Ganti dumpsys pakai pidof dengan akses root (su)
+            # Bakal return Process ID misal "15432" kalau idup, dan kosong kalau mati
             result = subprocess.run(
                 [
-                    "/system/bin/dumpsys",
-                    "activity",
-                    "processes",
+                    "su",
+                    "-c",
+                    f"pidof {self.package}",
                 ],
                 capture_output=True,
                 text=True,
                 timeout=5,
             )
 
-            return self.package in result.stdout
+            # Kalau outputnya ngga kosong, berarti gamenya beneran masih jalan di CPU
+            return bool(result.stdout.strip())
 
         except Exception:
-
             return False
 
     # ==========================================
@@ -256,4 +256,5 @@ def create_monitors(packages):
     return [
         CloneMonitor(package)
         for package in packages
-    ]
+        ]
+    
