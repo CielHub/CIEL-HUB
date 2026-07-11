@@ -6,7 +6,7 @@ from pathlib import Path
 
 from core.manager import Manager
 
-VERSION = "v3.1.0"
+VERSION = "v4"
 
 ROBLOX_KEYWORDS = (
     "roblox",
@@ -34,7 +34,7 @@ def banner():
  ╚═════╝╚═╝╚══════╝╚══════╝    ╚═╝  ╚═╝ ╚═════╝ ╚═════╝
 """)
 
-    print(f"                 {VERSION} (JAWA IRENG)\n")
+    print(f"                 {VERSION} (Termux Edition)\n")
 
 
 def info(msg):
@@ -366,11 +366,12 @@ def select_packages(packages):
 def clear_cache(package):
     info(f"Membersihkan cache {package}...")
     
-    # Harus pakai su (root) biar data akun ga ikut kehapus
+    # DEVNULL wajib dipakai supaya command Root (su) ga ngerusak layout teks Termux
     result = subprocess.run(
         ["su", "-c", f"rm -rf /data/data/{package}/cache/*"],
         capture_output=True,
         text=True,
+        stdin=subprocess.DEVNULL,
     )
     
     if result.returncode == 0:
@@ -455,7 +456,6 @@ def is_running(package):
 
 
 def smart_launch(package):
-    # Load config di dalam sini biar recovery.py tetep bisa pakai fungsi ini tanpa error
     cfg = load_config()
     
     if cfg.get("auto_clear_cache"):
@@ -538,6 +538,9 @@ def join_private_server(package, config):
 # ==========================================
 
 def main():
+    # Reset TTY state Termux biar text ga loncat/miring (Staircase effect)
+    os.system("stty sane")
+    
     try:
         banner()
 
@@ -648,8 +651,11 @@ def main():
                 pass
                 
         print("\033[92m[+] Semua clone berhasil di-force stop. Keluar bersih.\033[0m")
+        
+        # Reset ulang sebelum exit
+        os.system("stty sane")
 
 
 if __name__ == "__main__":
     main()
-        
+            
