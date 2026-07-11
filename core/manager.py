@@ -20,7 +20,8 @@ class Manager:
         self.packages = packages
         self.config = config
 
-        self.monitors = create_monitors(packages)
+        # Nambahin config kesini biar bisa dipake buat Discord Webhook
+        self.monitors = create_monitors(packages, config) 
 
         self.watchdog = Watchdog(
             self.monitors,
@@ -121,3 +122,4 @@ class Manager:
     def get_monitors(self):
 
         return self.monitors
+        
