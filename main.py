@@ -104,10 +104,11 @@ DEFAULT_CONFIG = {
     "force_close_delay": 30,
     "staggered_delay": 30,
     "auto_clear_cache": False,
-    "discord_webhook": "", # Konfigurasi baru
+    "discord_webhook": "", 
 
     "join_method": "private_server",
     "private_server_link": "",
+    "ps_tiap_akun": {}, # FITUR BARU: Menyimpan link PS per package
     "place_id": "",
 }
 
@@ -252,16 +253,40 @@ def settings_menu(config):
 # JOIN METHOD
 # ==========================================
 
-def join_method_menu(config):
+def verify_ps_tiap_akun(config, selected_packages):
+    """Mengecek dan meminta input link PS untuk masing-masing akun yang belum diset"""
+    if "ps_tiap_akun" not in config:
+        config["ps_tiap_akun"] = {}
+
+    ada_perubahan = False
+    print("\n[*] Mengecek data Link PS untuk setiap akun...")
+    
+    for i, pkg in enumerate(selected_packages, start=1):
+        if pkg not in config["ps_tiap_akun"] or config["ps_tiap_akun"][pkg] == "":
+            link = input(f"[>] Masukkan Link PS khusus Akun {i} ({pkg}):\n> ").strip()
+            config["ps_tiap_akun"][pkg] = link
+            ada_perubahan = True
+        else:
+            success(f"Akun {i} : Link PS sudah tersimpan.")
+
+    if ada_perubahan:
+        save_config(config)
+        success("Data Private Server tiap akun berhasil diperbarui!")
+        
+    return config
+
+def join_method_menu(config, selected_packages):
 
     print()
-
     title("METODE JOIN")
 
-    if config.get("join_method") == "private_server":
-        current = "Private Server"
+    current_method = config.get("join_method")
+    if current_method == "private_server":
+        current = "1. Private Server (Global)"
+    elif current_method == "private_server_tiap_akun":
+        current = "2. Private Server (Tiap Akun)"
     else:
-        current = "Place ID"
+        current = "3. Place ID"
 
     print(f"Metode saat ini : {current}")
     print()
@@ -269,56 +294,51 @@ def join_method_menu(config):
     answer = input("Ubah metode join? (y/n): ").strip().lower()
 
     if answer != "y":
-
         info("Menggunakan metode yang tersimpan.")
+        
+        # Validasi ulang jika user pakai opsi tiap akun tapi ada package baru yang dipilih
+        if current_method == "private_server_tiap_akun":
+            config = verify_ps_tiap_akun(config, selected_packages)
+            
         return config
 
     print()
-
-    print("[1] Private Server")
-    print("[2] Place ID")
+    print("[1] Private Server (Global)")
+    print("[2] Private Server (Tiap Akun)")
+    print("[3] Place ID")
     print()
 
     while True:
 
-        choice = input("Pilih metode: ").strip()
+        choice = input("Pilih metode (1/2/3): ").strip()
 
         if choice == "1":
-
-            title("PRIVATE SERVER")
-
-            link = input(
-                "Masukkan Private Server Link:\n> "
-            ).strip()
-
+            title("PRIVATE SERVER (GLOBAL)")
+            link = input("Masukkan Private Server Link:\n> ").strip()
             config["join_method"] = "private_server"
             config["private_server_link"] = link
             config["place_id"] = ""
-
             break
 
         elif choice == "2":
+            title("PRIVATE SERVER (TIAP AKUN)")
+            config["join_method"] = "private_server_tiap_akun"
+            config = verify_ps_tiap_akun(config, selected_packages)
+            break
 
+        elif choice == "3":
             title("PLACE ID")
-
-            place = input(
-                "Masukkan Place ID:\n> "
-            ).strip()
-
+            place = input("Masukkan Place ID:\n> ").strip()
             config["join_method"] = "place_id"
             config["place_id"] = place
             config["private_server_link"] = ""
-
             break
 
         else:
-
             warning("Pilihan tidak valid.")
 
     save_config(config)
-
     print()
-
     success("Metode join berhasil disimpan.")
 
     return config
@@ -509,15 +529,21 @@ def wait_until_foreground(package, timeout=20):
     warning("Timeout, lanjut join...")
     return True
 
+
 def join_private_server(package, config):
-
-    if config.get("join_method") != "private_server":
-        return
-
-    link = config.get("private_server_link", "").strip()
+    
+    method = config.get("join_method")
+    
+    # Ambil link berdasarkan metode yang dipilih
+    if method == "private_server":
+        link = config.get("private_server_link", "").strip()
+    elif method == "private_server_tiap_akun":
+        link = config.get("ps_tiap_akun", {}).get(package, "").strip()
+    else:
+        return # Metode join menggunakan Place ID atau yang lainnya, lewati fungsi PS
 
     if not link:
-        warning("Private Server Link kosong.")
+        warning(f"Private Server Link untuk {package} kosong/tidak ditemukan.")
         return
 
     info("Menunggu Roblox siap...")
@@ -556,15 +582,14 @@ def main():
     banner()
 
     # ==========================
-    # Load Config & Menus
+    # Load Config & Settings Menu
     # ==========================
     config = load_config()
     config = settings_menu(config)
-    config = join_method_menu(config)
     print()
 
     # ==========================
-    # Scan & Select
+    # Scan & Select Packages
     # ==========================
     info("Memindai package Roblox...")
     packages = scan_packages()
@@ -585,6 +610,13 @@ def main():
     title("PACKAGE TERPILIH")
     for package in selected:
         success(package)
+    print()
+
+    # ==========================
+    # Join Method Menu
+    # (Dipindah ke sini setelah package terpilih)
+    # ==========================
+    config = join_method_menu(config, selected)
     print()
 
     # ==========================
