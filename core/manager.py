@@ -1,4 +1,7 @@
+
 import time
+import sys
+import select
 
 from core.monitor import create_monitors
 from core.memory import get_ram
@@ -89,8 +92,18 @@ class Manager:
                 # Dashboard
                 self.update_dashboard()
 
-                # Refresh 1 detik
-                time.sleep(1)
+                # Jeda 1 detik sekalian dengerin input keyboard
+                # Kalau user ngetik 'r' lalu Enter, paksa reset status
+                i, o, e = select.select([sys.stdin], [], [], 1)
+                
+                if i:
+                    user_input = sys.stdin.readline().strip().lower()
+                    
+                    if user_input == 'r':
+                        # Force Reset: Set semua monitor jadi Offline
+                        for monitor in self.monitors:
+                            monitor.cancel_recovery() # Batalin kalau ada yg nyangkut recover
+                            monitor.set_offline()     # Paksa offline biar Watchdog kerja lagi
 
         except KeyboardInterrupt:
 
