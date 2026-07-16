@@ -2,6 +2,7 @@ import os
 import subprocess
 import time
 import json
+import random
 from pathlib import Path
 
 from core.manager import Manager
@@ -102,13 +103,14 @@ DEFAULT_CONFIG = {
     "packages": [],
     "reconnect_minutes": 5,
     "force_close_delay": 30,
-    "staggered_delay": 30,
+    "staggered_delay_min": 25, # Fitur baru: Delay Min
+    "staggered_delay_max": 40, # Fitur baru: Delay Max
     "auto_clear_cache": False,
     "discord_webhook": "", 
 
     "join_method": "private_server",
     "private_server_link": "",
-    "ps_tiap_akun": {}, # FITUR BARU: Menyimpan link PS per package
+    "ps_tiap_akun": {},
     "place_id": "",
 }
 
@@ -122,6 +124,12 @@ def load_config():
         try:
             with open(CONFIG_FILE, "r") as f:
                 old = json.load(f)
+            
+            # Migrasi config lama (staggered_delay tunggal) ke format baru
+            if "staggered_delay" in old:
+                old["staggered_delay_min"] = old["staggered_delay"]
+                old["staggered_delay_max"] = old["staggered_delay"] + 10
+                del old["staggered_delay"]
 
             config.update(old)
 
@@ -157,8 +165,8 @@ def settings_menu(config):
     )
     
     print(
-        f"Staggered Delay         : "
-        f"{config.get('staggered_delay', 30)} detik"
+        f"Staggered Delay (Acak)  : "
+        f"{config.get('staggered_delay_min', 25)} - {config.get('staggered_delay_max', 40)} detik"
     )
     
     status_cache = "ON" if config.get("auto_clear_cache") else "OFF"
@@ -211,13 +219,17 @@ def settings_menu(config):
         
     print()
 
-    title("STAGGERED LAUNCH DELAY")
+    title("STAGGERED LAUNCH DELAY (ANTI-BOT)")
+    info("Sistem akan memilih waktu tunggu secara acak di antara dua nilai ini.")
 
     while True:
         try:
-            stagger = int(input("Jeda antar clone in-game (detik): "))
-            if stagger >= 0:
+            stagger_min = int(input("Jeda MINIMAL antar clone (detik): "))
+            stagger_max = int(input("Jeda MAKSIMAL antar clone (detik): "))
+            if stagger_min >= 0 and stagger_max >= stagger_min:
                 break
+            else:
+                warning("Input tidak valid. Pastikan Maksimal lebih besar atau sama dengan Minimal.")
         except ValueError:
             pass
         warning("Masukkan angka yang valid.")
@@ -235,7 +247,8 @@ def settings_menu(config):
 
     config["reconnect_minutes"] = reconnect
     config["force_close_delay"] = delay
-    config["staggered_delay"] = stagger
+    config["staggered_delay_min"] = stagger_min
+    config["staggered_delay_max"] = stagger_max
     config["auto_clear_cache"] = auto_cache
     if ans_webhook:
         config["discord_webhook"] = ans_webhook
@@ -631,9 +644,13 @@ def main():
                 join_private_server(package, config)
                 
                 if i < total_clones - 1:
-                    delay = config.get("staggered_delay", 30)
+                    # Ambil nilai min dan max dari config, lalu acak delay-nya
+                    min_delay = config.get("staggered_delay_min", 25)
+                    max_delay = config.get("staggered_delay_max", 40)
+                    delay = random.randint(min_delay, max_delay)
+                    
                     print()
-                    info(f"Menunggu {delay} detik agar {package} masuk ke in-game...")
+                    info(f"Menunggu {delay} detik (Acak) agar {package} masuk ke in-game...")
                     
                     for remain in range(delay, 0, -1):
                         print(f"\r\033[94m[*] Lanjut ke clone berikutnya dalam {remain} detik...\033[0m  ", end="", flush=True)
