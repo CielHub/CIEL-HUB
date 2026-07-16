@@ -22,47 +22,24 @@ WHITE = "\033[97m"
 def clear():
     os.system("clear")
 
-
 def color(text, ansi):
     return f"{ansi}{text}{RESET}"
 
-
-def status_text(monitor):
-
-    if monitor.status.startswith("[OK]"):
-        return color("🟢 Farming", GREEN)
-
-    if monitor.status.startswith("[RC]"):
-        return color("🟡 Recover", YELLOW)
-
-    if monitor.status.startswith("[LO]"):
-        return color("🔵 Loading", CYAN)
-
-    if monitor.status.startswith("[ER]"):
-        return color("🔴 Offline", RED)
-
-    return monitor.status
-
-
 def line(text=""):
-
     print(
         color("║", BLUE)
         + f" {text:<{WIDTH-2}}"
         + color("║", BLUE)
     )
 
-
 # ==========================================
 # Dashboard
 # ==========================================
 
 def draw_dashboard(monitors, ram_used, ram_total):
-
     clear()
-
+    
     percent = 0
-
     if ram_total:
         percent = (ram_used / ram_total) * 100
 
@@ -71,63 +48,50 @@ def draw_dashboard(monitors, ram_used, ram_total):
     recovering = sum(m.recovering() for m in monitors)
 
     print(color("╔" + "═" * WIDTH + "╗", BLUE))
-
     line(color("🚀 CIEL-HUB v4.1", WHITE))
-
     print(color("╠" + "═" * WIDTH + "╣", BLUE))
-
-    line(
-        f"RAM      : {ram_used:.2f}/{ram_total:.2f} GB ({percent:.0f}%)"
-    )
-
-    line(
-        f"Online   : {online} | Offline : {offline} | Recover : {recovering}"
-    )
-
+    
+    line(f"RAM      : {ram_used:.2f}/{ram_total:.2f} GB ({percent:.0f}%)")
+    line(f"Online   : {online} | Offline : {offline} | Recover : {recovering}")
+    
     print(color("╠" + "═" * WIDTH + "╣", BLUE))
 
     for monitor in monitors:
-
-        name = monitor.package.replace(
-            "com.roblox.",
-            "",
-        )
+        name = monitor.package.replace("com.roblox.", "")
 
         if monitor.recovering():
-
             timer = f"{monitor.recovery_remaining:02}s"
-
         else:
-
             timer = monitor.uptime()
 
-        status = status_text(monitor)
+        # Tentukan status visual dan warnanya
+        if monitor.status.startswith("[OK]"):
+            vis_status = "♦ Farming"
+            ansi_color = GREEN
+        elif monitor.status.startswith("[RC]"):
+            vis_status = "♦ Recover"
+            ansi_color = YELLOW
+        elif monitor.status.startswith("[LO]"):
+            vis_status = "♦ Loading"
+            ansi_color = CYAN
+        else:
+            vis_status = "♦ Offline"
+            ansi_color = RED
 
-        plain_status = (
-            "🟢 Farming"
-            if monitor.status.startswith("[OK]")
-            else "🟡 Recover"
-            if monitor.status.startswith("[RC]")
-            else "🔵 Loading"
-            if monitor.status.startswith("[LO]")
-            else "🔴 Offline"
-        )
+        status_colored = color(vis_status, ansi_color)
 
-        # Siapin sisi kiri dan kanan
+        # Hitung layout dinamis
         left_str = f" {name:<10}"
         right_str = f"{timer:>10} "
         
-        # Hitung sisa ruang kosong buat spasi biar lurus sama garis atas (WIDTH - 2)
-        inside_width = WIDTH - 2
-        current_length = len(left_str) + len(plain_status) + len(right_str)
-        pad_length = inside_width - current_length
-        
+        space_left = (WIDTH - 2) - len(left_str) - len(right_str)
+        pad_length = space_left - len(vis_status)
         padding = " " * max(0, pad_length)
 
         print(
             color("║", BLUE)
             + left_str
-            + status
+            + status_colored
             + padding
             + right_str
             + color("║", BLUE)
