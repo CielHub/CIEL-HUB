@@ -21,6 +21,12 @@ class CloneMonitor:
         self.start_time = time.time()
         self.last_update = time.time()
         self.last_recover = time.time()
+        
+        # ==========================================
+        # Timer Session (Buat Pause/Resume Uptime)
+        # ==========================================
+        self.session_start = time.time()
+        self.total_uptime = 0
 
         # ==========================================
         # Runtime State
@@ -78,7 +84,11 @@ class CloneMonitor:
     # ==========================================
 
     def uptime(self):
-        sec = int(time.time() - self.start_time)
+        sec = self.total_uptime
+        if self.is_online:
+            sec += (time.time() - self.session_start)
+            
+        sec = int(sec)
         h = sec // 3600
         m = (sec % 3600) // 60
         s = sec % 60
@@ -99,6 +109,9 @@ class CloneMonitor:
     # ==========================================
 
     def start_recovery(self, seconds):
+        if self.is_online:
+            self.total_uptime += (time.time() - self.session_start) # Pause waktu
+
         self.status = STATUS_RECOVER
         self.is_recovering = True
         self.recovery_started = False
@@ -143,6 +156,9 @@ class CloneMonitor:
     # ==========================================
 
     def set_loading(self):
+        if not self.is_online:
+            self.session_start = time.time() # Lanjutin waktu
+
         self.status = STATUS_LOADING
         self.is_online = True
         self.is_launching = True
@@ -159,6 +175,9 @@ class CloneMonitor:
         )
 
     def set_farming(self):
+        if not self.is_online:
+            self.session_start = time.time() # Lanjutin waktu
+
         self.status = STATUS_FARMING
         self.is_online = True
         self.is_launching = False
@@ -174,11 +193,17 @@ class CloneMonitor:
         )
 
     def set_recover(self):
+        if self.is_online:
+            self.total_uptime += (time.time() - self.session_start) # Pause waktu
+
         self.status = STATUS_RECOVER
         self.is_online = False
         self.last_update = time.time()
 
     def set_offline(self):
+        if self.is_online:
+            self.total_uptime += (time.time() - self.session_start) # Pause waktu
+
         self.status = STATUS_OFFLINE
         self.is_online = False
         self.is_launching = False
