@@ -113,15 +113,25 @@ def draw_dashboard(monitors, ram_used, ram_total):
             else "🔴 Offline"
         )
 
-        padding = " " * max(1, 13 - len(plain_status))
+        # Siapin sisi kiri dan kanan
+        left_str = f" {name:<10}"
+        right_str = f"{timer:>10} "
+        
+        # Hitung sisa ruang kosong buat spasi biar lurus sama garis atas (WIDTH - 2)
+        inside_width = WIDTH - 2
+        current_length = len(left_str) + len(plain_status) + len(right_str)
+        pad_length = inside_width - current_length
+        
+        padding = " " * max(0, pad_length)
 
         print(
             color("║", BLUE)
-            + f" {name:<10}"
+            + left_str
             + status
             + padding
-            + f"{timer:>10} "
+            + right_str
             + color("║", BLUE)
         )
 
     print(color("╚" + "═" * WIDTH + "╝", BLUE))
+    
