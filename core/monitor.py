@@ -187,6 +187,7 @@ class CloneMonitor:
                 capture_output=True,
                 text=True,
                 timeout=5,
+                # stdin=subprocess.DEVNULL ini nyelamatin terminal dari hijack
                 stdin=subprocess.DEVNULL,
             )
             return bool(result.stdout.strip())
@@ -198,24 +199,22 @@ class CloneMonitor:
     # ==========================================
     def check_in_game_error(self):
         try:
-            # Cari 1 file log Roblox yang paling baru ditulis
+            # Semua subprocess.run di bawah ini WAJIB dikasih stdin=subprocess.DEVNULL
             cmd_find = f"su -c 'ls -t /sdcard/Android/data/{self.package}/files/logs/*.log 2>/dev/null | head -n 1'"
-            res_find = subprocess.run(cmd_find, shell=True, capture_output=True, text=True)
+            res_find = subprocess.run(cmd_find, shell=True, capture_output=True, text=True, stdin=subprocess.DEVNULL)
             log_file = res_find.stdout.strip()
             
-            # Kalo ga ketemu di /sdcard, cari di /data/data
             if not log_file:
                 cmd_find = f"su -c 'ls -t /data/data/{self.package}/files/logs/*.log 2>/dev/null | head -n 1'"
-                res_find = subprocess.run(cmd_find, shell=True, capture_output=True, text=True)
+                res_find = subprocess.run(cmd_find, shell=True, capture_output=True, text=True, stdin=subprocess.DEVNULL)
                 log_file = res_find.stdout.strip()
 
             if log_file:
-                # Cek 30 baris terakhir dari log itu, scan pakai Regex buat cari pop-up disconnect
                 cmd_check = f"su -c 'tail -n 30 {log_file} | grep -iE -m 1 \"error 278|error 277|error 268|connection lost|disconnect\"'"
-                res_check = subprocess.run(cmd_check, shell=True, capture_output=True, text=True)
+                res_check = subprocess.run(cmd_check, shell=True, capture_output=True, text=True, stdin=subprocess.DEVNULL)
                 
                 if res_check.stdout.strip():
-                    return True # Valid, akun ini kena pop-up putus koneksi!
+                    return True 
         except Exception:
             pass
         return False
@@ -232,11 +231,9 @@ class CloneMonitor:
         now = time.time()
 
         if alive:
-            # Pindai log internal tiap 20 detik untuk menghemat penggunaan CPU Android
             if now - self.last_log_check > 20:
                 self.last_log_check = now
                 if self.check_in_game_error():
-                    # Jika game masih idup tapi kedetect pop-up error, manipulasi status jadi offline
                     if self.status != STATUS_OFFLINE:
                         self.set_offline() 
                     return
@@ -268,5 +265,5 @@ def create_monitors(packages, config):
     return [
         CloneMonitor(package, config)
         for package in packages
-        ]
+            ]
     
