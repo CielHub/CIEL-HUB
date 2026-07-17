@@ -47,8 +47,29 @@ def draw_dashboard(monitors, ram_used, ram_total):
     offline = sum(m.offline() for m in monitors)
     recovering = sum(m.recovering() for m in monitors)
 
+    # ==========================================
+    # ASCII Banner CIEL
+    # ==========================================
+    ascii_ciel = [
+        " ██████╗██╗███████╗██╗     ",
+        "██╔════╝██║██╔════╝██║     ",
+        "██║     ██║█████╗  ██║     ",
+        "██║     ██║██╔══╝  ██║     ",
+        "╚██████╗██║███████╗███████╗",
+        " ╚═════╝╚═╝╚══════╝╚══════╝"
+    ]
+    
+    print()
+    for line_art in ascii_ciel:
+        # Bikin rata tengah otomatis nyesuaiin lebar kotak (WIDTH)
+        print(color(line_art.center(WIDTH), CYAN))
+    print()
+
+    # ==========================================
+    # Header Tabel
+    # ==========================================
     print(color("╔" + "═" * WIDTH + "╗", BLUE))
-    line(color("🚀 CIEL-HUB v4.1", WHITE))
+    line(color("🚀 CIEL-HUB v4.1 (Tempest)", WHITE))
     print(color("╠" + "═" * WIDTH + "╣", BLUE))
     
     line(f"RAM      : {ram_used:.2f}/{ram_total:.2f} GB ({percent:.0f}%)")
@@ -56,6 +77,9 @@ def draw_dashboard(monitors, ram_used, ram_total):
     
     print(color("╠" + "═" * WIDTH + "╣", BLUE))
 
+    # ==========================================
+    # List Akun
+    # ==========================================
     for monitor in monitors:
         name = monitor.package.replace("com.roblox.", "")
 
@@ -80,7 +104,7 @@ def draw_dashboard(monitors, ram_used, ram_total):
 
         status_colored = color(vis_status, ansi_color)
 
-        # Hitung layout dinamis
+        # Hitung layout dinamis biar garis kotak gak berantakan
         left_str = f" {name:<10}"
         right_str = f"{timer:>10} "
         
