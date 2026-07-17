@@ -2,7 +2,6 @@ import os
 import shutil
 import sys
 
-# Lebar maksimal pas layar full
 DEFAULT_WIDTH = 58
 
 # ==========================================
@@ -22,16 +21,15 @@ WHITE = "\033[97m"
 # ==========================================
 
 def clear():
-    # Pake direct ANSI escape sequence, ga pake os.system("clear") lagi
-    # Dijamin anti-tumpuk, anti-glitch, dan ga bakal ke-skip sama proses Root
-    sys.stdout.write('\033[2J\033[H')
+    # \033c akan me-reset state terminal sepenuhnya kalau sempet ke-hijack
+    # \033[2J\033[3J\033[H bersihin layar dan history buffer
+    sys.stdout.write('\033c\033[2J\033[3J\033[H')
     sys.stdout.flush()
 
 def color(text, ansi):
     return f"{ansi}{text}{RESET}"
 
 def print_header_row(left_text, ansi_left="", width=58):
-    # Hitung sisa spasi secara akurat tanpa terganggu kode ANSI
     spaces = width - len(left_text)
     if spaces < 0: spaces = 0
     text_colored = f"{ansi_left}{left_text}{RESET}" if ansi_left else left_text
@@ -44,13 +42,11 @@ def print_header_row(left_text, ansi_left="", width=58):
 def draw_dashboard(monitors, ram_used, ram_total):
     clear()
     
-    # Deteksi lebar layar otomatis
     try:
         term_width = shutil.get_terminal_size().columns
-        # Kurangi 4 karakter buat alokasi ruang border Kiri-Kanan 
         WIDTH = min(DEFAULT_WIDTH, term_width - 4)
         if WIDTH < 36: 
-            WIDTH = 36 # Batas terkecil biar tulisan ga kepotong
+            WIDTH = 36 
     except Exception:
         WIDTH = DEFAULT_WIDTH
         
@@ -76,7 +72,6 @@ def draw_dashboard(monitors, ram_used, ram_total):
     
     print()
     for line_art in ascii_ciel:
-        # Centering otomatis sesuai total lebar box (WIDTH + 4)
         art_text = line_art.center(WIDTH + 4)
         print(color(art_text, CYAN))
     print()
@@ -98,7 +93,6 @@ def draw_dashboard(monitors, ram_used, ram_total):
     # ==========================================
     for monitor in monitors:
         
-        # Ambil nama akun, paskan jadi 10 karakter
         raw_name = monitor.akun_label if monitor.akun_label else monitor.package.replace("com.roblox.", "")
         name = (raw_name[:10]).ljust(10)
 
@@ -120,8 +114,6 @@ def draw_dashboard(monitors, ram_used, ram_total):
             vis_status = "♦ Offline"
             ansi_color = RED
 
-        # Hitung sisa spasi buat misahin teks kiri dan kanan secara presisi
-        # Panjang isi = Nama(10) + Spasi(1) + Status(9) + Timer(variatif)
         content_len = len(name) + 1 + len(vis_status) + len(timer)
         spaces = WIDTH - content_len
         if spaces < 1: spaces = 1
