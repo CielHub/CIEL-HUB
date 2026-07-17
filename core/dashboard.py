@@ -1,7 +1,8 @@
 import os
-import sys
+import shutil
 
-WIDTH = 58
+# Lebar maksimal pas layar full
+DEFAULT_WIDTH = 58
 
 # ==========================================
 # ANSI COLOR
@@ -21,17 +22,16 @@ WHITE = "\033[97m"
 # ==========================================
 
 def clear():
-    # Pake ANSI Escape biar terminal ga kedip/pecah (jauh lebih mulus dari os.system)
-    sys.stdout.write("\033[H\033[J")
-    sys.stdout.flush()
+    # Balik pake clear bawaan sistem biar stabil pas split-screen
+    os.system("clear")
 
 def color(text, ansi):
     return f"{ansi}{text}{RESET}"
 
-def line(text=""):
+def line(text, current_width):
     print(
         color("║", BLUE)
-        + f" {text:<{WIDTH-2}}"
+        + f" {text:<{current_width-2}}"
         + color("║", BLUE)
     )
 
@@ -42,6 +42,16 @@ def line(text=""):
 def draw_dashboard(monitors, ram_used, ram_total):
     clear()
     
+    # Bikin lebar dinamis ngikutin ukuran layar Termux (Auto-Responsive)
+    try:
+        term_width = shutil.get_terminal_size().columns
+        WIDTH = min(DEFAULT_WIDTH, term_width)
+        # Batas minimal biar tabel ga terlalu dempet pas di-split screen banget
+        if WIDTH < 42: 
+            WIDTH = 42
+    except Exception:
+        WIDTH = DEFAULT_WIDTH
+        
     percent = 0
     if ram_total:
         percent = (ram_used / ram_total) * 100
@@ -71,11 +81,11 @@ def draw_dashboard(monitors, ram_used, ram_total):
     # Header Tabel
     # ==========================================
     print(color("╔" + "═" * WIDTH + "╗", BLUE))
-    line(color("🚀 CIEL-HUB v4.1 (Tempest)", WHITE))
+    line(color("🚀 CIEL-HUB v4.1 (Tempest)", WHITE), WIDTH)
     print(color("╠" + "═" * WIDTH + "╣", BLUE))
     
-    line(f"RAM      : {ram_used:.2f}/{ram_total:.2f} GB ({percent:.0f}%)")
-    line(f"Online   : {online} | Offline : {offline} | Recover : {recovering}")
+    line(f"RAM      : {ram_used:.2f}/{ram_total:.2f} GB ({percent:.0f}%)", WIDTH)
+    line(f"Online   : {online} | Offline : {offline} | Recover : {recovering}", WIDTH)
     
     print(color("╠" + "═" * WIDTH + "╣", BLUE))
 
@@ -84,9 +94,9 @@ def draw_dashboard(monitors, ram_used, ram_total):
     # ==========================================
     for monitor in monitors:
         
-        # Pake Username asli hasil deteksi, dilimit 10 huruf biar tabel ga pecah
+        # Ambil nama akun dan pastikan panjangnya persis 10 karakter biar rata
         raw_name = monitor.akun_label if monitor.akun_label else monitor.package.replace("com.roblox.", "")
-        name = raw_name[:10]
+        name = (raw_name[:10]).ljust(10)
 
         if monitor.recovering():
             timer = f"{monitor.recovery_remaining:02}s"
@@ -109,13 +119,13 @@ def draw_dashboard(monitors, ram_used, ram_total):
 
         status_colored = color(vis_status, ansi_color)
 
-        # Hitung layout dinamis biar garis kotak lurus mulus
-        left_str = f" {name:<10}"
-        right_str = f"{timer:>10} "
+        left_str = f" {name}"
+        right_str = f"{timer:>9} " 
         
-        space_left = (WIDTH - 2) - len(left_str) - len(right_str)
-        pad_length = space_left - len(vis_status)
-        padding = " " * max(0, pad_length)
+        # Rumus spasi tengah otomatis
+        inside_space = WIDTH - 2
+        pad_length = inside_space - len(left_str) - len(right_str) - len(vis_status)
+        padding = " " * max(1, pad_length) # Minimal kasih 1 spasi
 
         print(
             color("║", BLUE)
