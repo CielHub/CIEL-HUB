@@ -85,8 +85,10 @@ DEFAULT_CONFIG = {
     "force_close_delay": 30,
     "staggered_delay_min": 25,
     "staggered_delay_max": 40,
-    "auto_clear_cache_minutes": 60, # Udah pake sistem menit
+    "auto_clear_cache_minutes": 60, 
     "discord_webhook": "", 
+    "device_name": "Device-1", # Fitur Baru: Nama Device
+    "akun_labels": {},         # Fitur Baru: Label Akun per Package
     "join_method": "private_server",
     "private_server_link": "",
     "ps_tiap_akun": {},
@@ -127,6 +129,7 @@ def save_config(config):
 def settings_menu(config):
     print()
     title("PENGATURAN")
+    print(f"Device Name             : {config.get('device_name', 'Device-1')}")
     print(f"Reconnect saat ini      : {config.get('reconnect_minutes', 5)} menit")
     print(f"Force Close Delay       : {config.get('force_close_delay', 30)} detik")
     print(f"Staggered Delay (Acak)  : {config.get('staggered_delay_min', 25)} - {config.get('staggered_delay_max', 40)} detik")
@@ -140,6 +143,16 @@ def settings_menu(config):
     if answer != "y":
         info("Menggunakan konfigurasi tersimpan.")
         return config
+
+    print()
+    title("NAMA DEVICE & WEBHOOK")
+    ans_device = input(f"Masukkan Nama Device ini (Kosongi utk pakai '{config.get('device_name', 'Device-1')}'):\n> ").strip()
+    if ans_device:
+        config["device_name"] = ans_device
+    elif not config.get("device_name"):
+        config["device_name"] = "Device-1"
+        
+    ans_webhook = input("Masukkan URL Webhook Discord (Kosongkan jika tidak pakai):\n> ").strip()
 
     print()
     title("AUTO RECONNECT")
@@ -190,9 +203,6 @@ def settings_menu(config):
             pass
         warning("Masukkan angka valid (Misal: 60).")
     
-    print()
-    title("DISCORD WEBHOOK NOTIFICATION")
-    ans_webhook = input("Masukkan URL Webhook Discord (Kosongkan jika tidak pakai):\n> ").strip()
 
     config["reconnect_minutes"] = reconnect
     config["force_close_delay"] = delay
@@ -208,8 +218,31 @@ def settings_menu(config):
     return config
 
 # ==========================================
-# JOIN METHOD
+# JOIN METHOD & LABEL AKUN
 # ==========================================
+
+def verify_akun_labels(config, selected_packages):
+    if "akun_labels" not in config:
+        config["akun_labels"] = {}
+        
+    ada_perubahan = False
+    print("\n[*] Mengecek Label/Nama Akun untuk Notifikasi Discord...")
+    
+    for i, pkg in enumerate(selected_packages, start=1):
+        short_pkg = pkg.replace("com.roblox.", "")
+        if pkg not in config["akun_labels"] or config["akun_labels"][pkg] == "":
+            label = input(f"[>] Masukkan Nama Akun untuk clone {short_pkg}:\n> ").strip()
+            if not label:
+                label = short_pkg # Fallback ke nama package kalau dikosongin
+            config["akun_labels"][pkg] = label
+            ada_perubahan = True
+        else:
+            success(f"Clone {short_pkg} : Diset sebagai [{config['akun_labels'][pkg]}]")
+
+    if ada_perubahan:
+        save_config(config)
+        success("Label Akun berhasil disimpan!")
+    return config
 
 def verify_ps_tiap_akun(config, selected_packages):
     if "ps_tiap_akun" not in config:
@@ -218,12 +251,13 @@ def verify_ps_tiap_akun(config, selected_packages):
     print("\n[*] Mengecek data Link PS untuk setiap akun...")
     
     for i, pkg in enumerate(selected_packages, start=1):
+        label = config.get("akun_labels", {}).get(pkg, pkg)
         if pkg not in config["ps_tiap_akun"] or config["ps_tiap_akun"][pkg] == "":
-            link = input(f"[>] Masukkan Link PS khusus Akun {i} ({pkg}):\n> ").strip()
+            link = input(f"[>] Masukkan Link PS khusus untuk akun {label}:\n> ").strip()
             config["ps_tiap_akun"][pkg] = link
             ada_perubahan = True
         else:
-            success(f"Akun {i} : Link PS sudah tersimpan.")
+            success(f"Akun {label} : Link PS sudah tersimpan.")
 
     if ada_perubahan:
         save_config(config)
@@ -381,7 +415,6 @@ def is_running(package):
     return bool(result.stdout.strip())
 
 def smart_launch(package):
-    # Logika clear_cache dipindah ke background task di Manager
     if not launch_package(package):
         return False
     wait_until_foreground(package)
@@ -462,6 +495,10 @@ def main():
     for package in selected:
         success(package)
     print()
+    
+    # Memastikan tiap akun punya Label/Nama
+    config = verify_akun_labels(config, selected)
+    print()
 
     config = join_method_menu(config, selected)
     print()
@@ -487,7 +524,6 @@ def main():
 
         success("Semua clone berhasil dijalankan.")
 
-        # Lempar clear_cache ke Manager biar bisa jalan di background
         manager = Manager(
             selected,
             config,
@@ -513,4 +549,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
+                  
