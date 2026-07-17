@@ -228,7 +228,6 @@ def verify_ps_tiap_akun(config, selected_packages):
     print("\n[*] Mengecek data Link PS untuk setiap akun...")
     
     for i, pkg in enumerate(selected_packages, start=1):
-        # Kalau belum kedetect username, bakal nampilin nama package nya dulu buat identifikasi
         label = config.get("akun_labels", {}).get(pkg, pkg.replace("com.roblox.", ""))
         if pkg not in config["ps_tiap_akun"] or config["ps_tiap_akun"][pkg] == "":
             link = input(f"[>] Masukkan Link PS khusus untuk akun [{label}]:\n> ").strip()
@@ -425,8 +424,8 @@ def detect_single_username(pkg, config, index):
         username = None
         
         try:
-            # Kasih jeda dikit biar game sempet nulis data xml ke storage
-            time.sleep(2)
+            # Kasih jeda lebih lama (4 detik) biar game bener-bener sempet nulis XML config-nya
+            time.sleep(4)
             cmd = ["su", "-c", f"cat /data/data/{pkg}/shared_prefs/*.xml"]
             result = subprocess.run(cmd, capture_output=True, text=True, stderr=subprocess.DEVNULL)
             output = result.stdout
@@ -448,9 +447,9 @@ def detect_single_username(pkg, config, index):
             config["akun_labels"][pkg] = username
         else:
             warning(f"Gagal mendeteksi otomatis Username.")
-            print("\033[93m[!] Silakan kembali ke Termux sebentar untuk input nama manual!\033[0m")
-            label = input(f"[>] Masukkan Nama Akun manual untuk clone {short_pkg}:\n> ").strip()
-            config["akun_labels"][pkg] = label if label else short_pkg
+            info(f"Menggunakan nama default [{short_pkg}] agar proses otomatisasi tidak terhenti.")
+            # Hapus paksa input manual, biarin dia lanjut pake nama default short_pkg
+            config["akun_labels"][pkg] = short_pkg
             
         save_config(config)
     return config
@@ -523,13 +522,14 @@ def main():
     try:
         total_clones = len(selected)
         for i, package in enumerate(selected):
+            
             # 1. Buka gamenya dulu
             if smart_launch(package):
                 
-                # 2. SEKARANG baru kita deteksi pas udah masuk game (Flow baru)
+                # 2. Deteksi pas udah masuk game (Flow baru, non-blocking)
                 config = detect_single_username(package, config, i + 1)
                 
-                # 3. Lanjut Join
+                # 3. Lanjut Join Private Server
                 join_private_server(package, config)
                 
                 # 4. Tunggu Delay Acak sebelum akun berikutnya
@@ -548,7 +548,6 @@ def main():
 
         success("Semua clone berhasil dijalankan.")
 
-        # Kirim config terbaru yang udah ada labelnya ke Manager biar Webhooknya bener
         manager = Manager(
             selected,
             config,
