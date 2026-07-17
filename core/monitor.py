@@ -13,8 +13,12 @@ class CloneMonitor:
     def __init__(self, package, config):
 
         self.package = package
-        self.config = config # Simpen config buat Webhook
+        self.config = config 
         self.webhook_url = config.get("discord_webhook", "").strip()
+        
+        # Ambil data tambahan untuk notifikasi
+        self.device_name = config.get("device_name", "Unknown Device")
+        self.akun_label = config.get("akun_labels", {}).get(package, package.replace("com.roblox.", ""))
 
         self.status = STATUS_LOADING
 
@@ -58,11 +62,30 @@ class CloneMonitor:
         if not self.webhook_url:
             return
             
+        short_pkg = self.package.replace("com.roblox.", "")
+            
         data = {
             "embeds": [{
                 "title": title,
                 "description": description,
                 "color": color,
+                "fields": [
+                    {
+                        "name": "📱 Device",
+                        "value": f"`{self.device_name}`",
+                        "inline": True
+                    },
+                    {
+                        "name": "👤 Akun",
+                        "value": f"**{self.akun_label}**",
+                        "inline": True
+                    },
+                    {
+                        "name": "📦 Package",
+                        "value": f"`{short_pkg}`",
+                        "inline": True
+                    }
+                ],
                 "footer": {"text": "Ciel-Hub Auto Recovery"}
             }]
         }
@@ -74,10 +97,9 @@ class CloneMonitor:
         )
         
         try:
-            # Ngirim data tapi dikasih bates waktu biar Termux lu ga ngelag
             urllib.request.urlopen(req, timeout=3)
         except Exception:
-            pass # Cuekin aja kalo gagal kirim biar script tetep jalan
+            pass 
 
     # ==========================================
     # Uptime
@@ -110,7 +132,7 @@ class CloneMonitor:
 
     def start_recovery(self, seconds):
         if self.is_online:
-            self.total_uptime += (time.time() - self.session_start) # Pause waktu
+            self.total_uptime += (time.time() - self.session_start) 
 
         self.status = STATUS_RECOVER
         self.is_recovering = True
@@ -157,7 +179,7 @@ class CloneMonitor:
 
     def set_loading(self):
         if not self.is_online:
-            self.session_start = time.time() # Lanjutin waktu
+            self.session_start = time.time() 
 
         self.status = STATUS_LOADING
         self.is_online = True
@@ -167,16 +189,15 @@ class CloneMonitor:
         self.last_seen = time.time()
         self.last_update = time.time()
         
-        # Kirim Alert Kuning (16776960)
         self.send_discord_alert(
-            f"🔄 {self.package} - Memulai Loading",
+            f"🔄 {self.akun_label} - Memulai Loading",
             "Menyiapkan clone untuk masuk ke in-game.",
             16776960
         )
 
     def set_farming(self):
         if not self.is_online:
-            self.session_start = time.time() # Lanjutin waktu
+            self.session_start = time.time() 
 
         self.status = STATUS_FARMING
         self.is_online = True
@@ -185,16 +206,15 @@ class CloneMonitor:
         self.last_seen = time.time()
         self.last_update = time.time()
         
-        # Kirim Alert Hijau (65280)
         self.send_discord_alert(
-            f"🟢 {self.package} - Farming Berjalan",
+            f"🟢 {self.akun_label} - Farming Berjalan",
             "Clone berhasil online dan sedang farming.",
             65280
         )
 
     def set_recover(self):
         if self.is_online:
-            self.total_uptime += (time.time() - self.session_start) # Pause waktu
+            self.total_uptime += (time.time() - self.session_start) 
 
         self.status = STATUS_RECOVER
         self.is_online = False
@@ -202,7 +222,7 @@ class CloneMonitor:
 
     def set_offline(self):
         if self.is_online:
-            self.total_uptime += (time.time() - self.session_start) # Pause waktu
+            self.total_uptime += (time.time() - self.session_start) 
 
         self.status = STATUS_OFFLINE
         self.is_online = False
@@ -211,9 +231,8 @@ class CloneMonitor:
         self.offline_count += 1
         self.last_update = time.time()
         
-        # Kirim Alert Merah (16711680)
         self.send_discord_alert(
-            f"🔴 {self.package} - Clone Terputus / Force Close",
+            f"🔴 {self.akun_label} - Terputus / Force Close",
             "Game tidak terdeteksi oleh sistem. Menunggu proses recovery...",
             16711680
         )
