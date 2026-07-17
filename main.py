@@ -412,33 +412,41 @@ def wait_until_foreground(package, timeout=20):
     return True
 
 def detect_single_username(pkg, config, index):
-    """Jalanin ini persis setelah game masuk ke foreground biar datanya fresh"""
+    """Mencari Username dengan cara nge-grep seluruh file konfigurasi pake Root Shell"""
     if "akun_labels" not in config:
         config["akun_labels"] = {}
         
     short_pkg = pkg.replace("com.roblox.", "")
     
-    # Kalo labelnya masih kosong atau masih pake nama package default
     if pkg not in config["akun_labels"] or config["akun_labels"][pkg] == "" or config["akun_labels"][pkg] == short_pkg:
         info(f"Mencoba deteksi otomatis Username dari {short_pkg}...")
         username = None
         
         try:
-            # Kasih jeda lebih lama (4 detik) biar game bener-bener sempet nulis XML config-nya
-            time.sleep(4)
-            cmd = ["su", "-c", f"cat /data/data/{pkg}/shared_prefs/*.xml"]
-            result = subprocess.run(cmd, capture_output=True, text=True, stderr=subprocess.DEVNULL)
+            # Jeda 5 detik biar mod APK selesai loading & nulis data ke file
+            time.sleep(5)
+            
+            # Pake find & cat via shell=True biar root yg eksekusi pencarian filenya
+            cmd = f"su -c 'find /data/data/{pkg} -type f -name \"*.xml\" -o -name \"*.json\" -exec cat {{}} + 2>/dev/null'"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             output = result.stdout
             
             # Scan 1: Format XML standar
-            match = re.search(r'(?i)<string name="[^"]*username[^"]*">([^<]+)</string>', output)
-            if match:
-                username = match.group(1).strip()
-            else:
-                # Scan 2: Kalau formatnya JSON atau raw text
-                match_alt = re.search(r'(?i)"username"\s*:\s*"([^"]+)"', output)
-                if match_alt:
-                    username = match_alt.group(1).strip()
+            matches = re.findall(r'(?i)<string name="[^"]*username[^"]*">([^<]+)</string>', output)
+            for match in matches:
+                clean_match = match.strip()
+                if clean_match and len(clean_match) > 2 and "roblox" not in clean_match.lower():
+                    username = clean_match
+                    break
+            
+            # Scan 2: Kalo mod pake format JSON
+            if not username:
+                matches_json = re.findall(r'(?i)"[^"]*username[^"]*"\s*:\s*"([^"]+)"', output)
+                for match in matches_json:
+                    clean_match = match.strip()
+                    if clean_match and len(clean_match) > 2:
+                        username = clean_match
+                        break
         except Exception:
             pass
             
@@ -448,7 +456,6 @@ def detect_single_username(pkg, config, index):
         else:
             warning(f"Gagal mendeteksi otomatis Username.")
             info(f"Menggunakan nama default [{short_pkg}] agar proses otomatisasi tidak terhenti.")
-            # Hapus paksa input manual, biarin dia lanjut pake nama default short_pkg
             config["akun_labels"][pkg] = short_pkg
             
         save_config(config)
@@ -526,7 +533,7 @@ def main():
             # 1. Buka gamenya dulu
             if smart_launch(package):
                 
-                # 2. Deteksi pas udah masuk game (Flow baru, non-blocking)
+                # 2. Deteksi pas udah masuk game (Flow baru, mode agresif via Root)
                 config = detect_single_username(package, config, i + 1)
                 
                 # 3. Lanjut Join Private Server
@@ -573,4 +580,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-            
+                           
