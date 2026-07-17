@@ -1,4 +1,5 @@
 import os
+import sys
 
 WIDTH = 58
 
@@ -20,7 +21,9 @@ WHITE = "\033[97m"
 # ==========================================
 
 def clear():
-    os.system("clear")
+    # Pake ANSI Escape biar terminal ga kedip/pecah (jauh lebih mulus dari os.system)
+    sys.stdout.write("\033[H\033[J")
+    sys.stdout.flush()
 
 def color(text, ansi):
     return f"{ansi}{text}{RESET}"
@@ -61,7 +64,6 @@ def draw_dashboard(monitors, ram_used, ram_total):
     
     print()
     for line_art in ascii_ciel:
-        # Bikin rata tengah otomatis nyesuaiin lebar kotak (WIDTH)
         print(color(line_art.center(WIDTH), CYAN))
     print()
 
@@ -81,7 +83,10 @@ def draw_dashboard(monitors, ram_used, ram_total):
     # List Akun
     # ==========================================
     for monitor in monitors:
-        name = monitor.package.replace("com.roblox.", "")
+        
+        # Pake Username asli hasil deteksi, dilimit 10 huruf biar tabel ga pecah
+        raw_name = monitor.akun_label if monitor.akun_label else monitor.package.replace("com.roblox.", "")
+        name = raw_name[:10]
 
         if monitor.recovering():
             timer = f"{monitor.recovery_remaining:02}s"
@@ -104,7 +109,7 @@ def draw_dashboard(monitors, ram_used, ram_total):
 
         status_colored = color(vis_status, ansi_color)
 
-        # Hitung layout dinamis biar garis kotak gak berantakan
+        # Hitung layout dinamis biar garis kotak lurus mulus
         left_str = f" {name:<10}"
         right_str = f"{timer:>10} "
         
