@@ -1,5 +1,6 @@
 import os
 import shutil
+import sys
 
 # Lebar maksimal pas layar full
 DEFAULT_WIDTH = 58
@@ -9,7 +10,6 @@ DEFAULT_WIDTH = 58
 # ==========================================
 
 RESET = "\033[0m"
-
 BLUE = "\033[94m"
 CYAN = "\033[96m"
 GREEN = "\033[92m"
@@ -22,18 +22,20 @@ WHITE = "\033[97m"
 # ==========================================
 
 def clear():
-    # Balik pake clear bawaan sistem biar stabil pas split-screen
-    os.system("clear")
+    # Pake direct ANSI escape sequence, ga pake os.system("clear") lagi
+    # Dijamin anti-tumpuk, anti-glitch, dan ga bakal ke-skip sama proses Root
+    sys.stdout.write('\033[2J\033[H')
+    sys.stdout.flush()
 
 def color(text, ansi):
     return f"{ansi}{text}{RESET}"
 
-def line(text, current_width):
-    print(
-        color("║", BLUE)
-        + f" {text:<{current_width-2}}"
-        + color("║", BLUE)
-    )
+def print_header_row(left_text, ansi_left="", width=58):
+    # Hitung sisa spasi secara akurat tanpa terganggu kode ANSI
+    spaces = width - len(left_text)
+    if spaces < 0: spaces = 0
+    text_colored = f"{ansi_left}{left_text}{RESET}" if ansi_left else left_text
+    print(color("║ ", BLUE) + text_colored + (" " * spaces) + color(" ║", BLUE))
 
 # ==========================================
 # Dashboard
@@ -42,13 +44,13 @@ def line(text, current_width):
 def draw_dashboard(monitors, ram_used, ram_total):
     clear()
     
-    # Bikin lebar dinamis ngikutin ukuran layar Termux (Auto-Responsive)
+    # Deteksi lebar layar otomatis
     try:
         term_width = shutil.get_terminal_size().columns
-        WIDTH = min(DEFAULT_WIDTH, term_width)
-        # Batas minimal biar tabel ga terlalu dempet pas di-split screen banget
-        if WIDTH < 42: 
-            WIDTH = 42
+        # Kurangi 4 karakter buat alokasi ruang border Kiri-Kanan 
+        WIDTH = min(DEFAULT_WIDTH, term_width - 4)
+        if WIDTH < 36: 
+            WIDTH = 36 # Batas terkecil biar tulisan ga kepotong
     except Exception:
         WIDTH = DEFAULT_WIDTH
         
@@ -74,27 +76,29 @@ def draw_dashboard(monitors, ram_used, ram_total):
     
     print()
     for line_art in ascii_ciel:
-        print(color(line_art.center(WIDTH), CYAN))
+        # Centering otomatis sesuai total lebar box (WIDTH + 4)
+        art_text = line_art.center(WIDTH + 4)
+        print(color(art_text, CYAN))
     print()
 
     # ==========================================
     # Header Tabel
     # ==========================================
-    print(color("╔" + "═" * WIDTH + "╗", BLUE))
-    line(color("🚀 CIEL-HUB v4.1 (Tempest)", WHITE), WIDTH)
-    print(color("╠" + "═" * WIDTH + "╣", BLUE))
+    print(color("╔" + "═" * (WIDTH + 2) + "╗", BLUE))
+    print_header_row("🚀 CIEL-HUB v4.1 (Tempest)", WHITE, WIDTH)
+    print(color("╠" + "═" * (WIDTH + 2) + "╣", BLUE))
     
-    line(f"RAM      : {ram_used:.2f}/{ram_total:.2f} GB ({percent:.0f}%)", WIDTH)
-    line(f"Online   : {online} | Offline : {offline} | Recover : {recovering}", WIDTH)
+    print_header_row(f"RAM      : {ram_used:.2f}/{ram_total:.2f} GB ({percent:.0f}%)", "", WIDTH)
+    print_header_row(f"Online   : {online} | Offline : {offline} | Recover : {recovering}", "", WIDTH)
     
-    print(color("╠" + "═" * WIDTH + "╣", BLUE))
+    print(color("╠" + "═" * (WIDTH + 2) + "╣", BLUE))
 
     # ==========================================
     # List Akun
     # ==========================================
     for monitor in monitors:
         
-        # Ambil nama akun dan pastikan panjangnya persis 10 karakter biar rata
+        # Ambil nama akun, paskan jadi 10 karakter
         raw_name = monitor.akun_label if monitor.akun_label else monitor.package.replace("com.roblox.", "")
         name = (raw_name[:10]).ljust(10)
 
@@ -103,7 +107,6 @@ def draw_dashboard(monitors, ram_used, ram_total):
         else:
             timer = monitor.uptime()
 
-        # Tentukan status visual dan warnanya
         if monitor.status.startswith("[OK]"):
             vis_status = "♦ Farming"
             ansi_color = GREEN
@@ -117,24 +120,23 @@ def draw_dashboard(monitors, ram_used, ram_total):
             vis_status = "♦ Offline"
             ansi_color = RED
 
-        status_colored = color(vis_status, ansi_color)
-
-        left_str = f" {name}"
-        right_str = f"{timer:>9} " 
+        # Hitung sisa spasi buat misahin teks kiri dan kanan secara presisi
+        # Panjang isi = Nama(10) + Spasi(1) + Status(9) + Timer(variatif)
+        content_len = len(name) + 1 + len(vis_status) + len(timer)
+        spaces = WIDTH - content_len
+        if spaces < 1: spaces = 1
         
-        # Rumus spasi tengah otomatis
-        inside_space = WIDTH - 2
-        pad_length = inside_space - len(left_str) - len(right_str) - len(vis_status)
-        padding = " " * max(1, pad_length) # Minimal kasih 1 spasi
+        padding = " " * spaces
 
-        print(
-            color("║", BLUE)
-            + left_str
-            + status_colored
-            + padding
-            + right_str
-            + color("║", BLUE)
+        line_str = (
+            color("║ ", BLUE) + 
+            name + " " + 
+            color(vis_status, ansi_color) + 
+            padding + 
+            timer + 
+            color(" ║", BLUE)
         )
+        print(line_str)
 
-    print(color("╚" + "═" * WIDTH + "╝", BLUE))
-    
+    print(color("╚" + "═" * (WIDTH + 2) + "╝", BLUE))
+        
