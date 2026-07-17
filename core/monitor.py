@@ -1,7 +1,5 @@
 import subprocess
 import time
-import json
-import urllib.request
 
 STATUS_LOADING = "[LO] Loading"
 STATUS_FARMING = "[OK] Farming"
@@ -14,10 +12,9 @@ class CloneMonitor:
 
         self.package = package
         self.config = config 
-        self.webhook_url = config.get("discord_webhook", "").strip()
         
-        # Ambil data tambahan untuk notifikasi
-        self.device_name = config.get("device_name", "Unknown Device")
+        # Data buat Panel Discord / Dashboard Termux
+        self.device_name = config.get("device_name", "Device-1")
         self.akun_label = config.get("akun_labels", {}).get(package, package.replace("com.roblox.", ""))
 
         self.status = STATUS_LOADING
@@ -55,52 +52,6 @@ class CloneMonitor:
         self.is_recovering = False
         self.recovery_started = False
         
-    # ==========================================
-    # Discord Webhook Logic
-    # ==========================================
-    def send_discord_alert(self, title, description, color):
-        if not self.webhook_url:
-            return
-            
-        short_pkg = self.package.replace("com.roblox.", "")
-            
-        data = {
-            "embeds": [{
-                "title": title,
-                "description": description,
-                "color": color,
-                "fields": [
-                    {
-                        "name": "📱 Device",
-                        "value": f"`{self.device_name}`",
-                        "inline": True
-                    },
-                    {
-                        "name": "👤 Akun",
-                        "value": f"**{self.akun_label}**",
-                        "inline": True
-                    },
-                    {
-                        "name": "📦 Package",
-                        "value": f"`{short_pkg}`",
-                        "inline": True
-                    }
-                ],
-                "footer": {"text": "Ciel-Hub Auto Recovery"}
-            }]
-        }
-        
-        req = urllib.request.Request(
-            self.webhook_url, 
-            data=json.dumps(data).encode('utf-8'),
-            headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        )
-        
-        try:
-            urllib.request.urlopen(req, timeout=3)
-        except Exception:
-            pass 
-
     # ==========================================
     # Uptime
     # ==========================================
@@ -188,12 +139,6 @@ class CloneMonitor:
         self.launch_count += 1
         self.last_seen = time.time()
         self.last_update = time.time()
-        
-        self.send_discord_alert(
-            f"🔄 {self.akun_label} - Memulai Loading",
-            "Menyiapkan clone untuk masuk ke in-game.",
-            16776960
-        )
 
     def set_farming(self):
         if not self.is_online:
@@ -205,12 +150,6 @@ class CloneMonitor:
         self.is_joining = False
         self.last_seen = time.time()
         self.last_update = time.time()
-        
-        self.send_discord_alert(
-            f"🟢 {self.akun_label} - Farming Berjalan",
-            "Clone berhasil online dan sedang farming.",
-            65280
-        )
 
     def set_recover(self):
         if self.is_online:
@@ -230,12 +169,6 @@ class CloneMonitor:
         self.is_joining = False
         self.offline_count += 1
         self.last_update = time.time()
-        
-        self.send_discord_alert(
-            f"🔴 {self.akun_label} - Terputus / Force Close",
-            "Game tidak terdeteksi oleh sistem. Menunggu proses recovery...",
-            16711680
-        )
 
     # ==========================================
     # Process Detection
