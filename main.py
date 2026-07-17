@@ -3,6 +3,7 @@ import subprocess
 import time
 import json
 import random
+import re # Tambahan modul regex buat nyari username
 from pathlib import Path
 
 from core.manager import Manager
@@ -87,8 +88,8 @@ DEFAULT_CONFIG = {
     "staggered_delay_max": 40,
     "auto_clear_cache_minutes": 60, 
     "discord_webhook": "", 
-    "device_name": "Device-1", # Fitur Baru: Nama Device
-    "akun_labels": {},         # Fitur Baru: Label Akun per Package
+    "device_name": "Device-1",
+    "akun_labels": {},         
     "join_method": "private_server",
     "private_server_link": "",
     "ps_tiap_akun": {},
@@ -102,13 +103,11 @@ def load_config():
             with open(CONFIG_FILE, "r") as f:
                 old = json.load(f)
             
-            # Migrasi config delay acak lama
             if "staggered_delay" in old:
                 old["staggered_delay_min"] = old["staggered_delay"]
                 old["staggered_delay_max"] = old["staggered_delay"] + 10
                 del old["staggered_delay"]
                 
-            # Migrasi config cache lama ke format menit
             if "auto_clear_cache" in old:
                 old["auto_clear_cache_minutes"] = 60 if old["auto_clear_cache"] else 0
                 del old["auto_clear_cache"]
@@ -218,7 +217,7 @@ def settings_menu(config):
     return config
 
 # ==========================================
-# JOIN METHOD & LABEL AKUN
+# JOIN METHOD & LABEL AKUN (AUTO-DETECT)
 # ==========================================
 
 def verify_akun_labels(config, selected_packages):
@@ -230,14 +229,40 @@ def verify_akun_labels(config, selected_packages):
     
     for i, pkg in enumerate(selected_packages, start=1):
         short_pkg = pkg.replace("com.roblox.", "")
-        if pkg not in config["akun_labels"] or config["akun_labels"][pkg] == "":
-            label = input(f"[>] Masukkan Nama Akun untuk clone {short_pkg}:\n> ").strip()
-            if not label:
-                label = short_pkg # Fallback ke nama package kalau dikosongin
-            config["akun_labels"][pkg] = label
-            ada_perubahan = True
+        
+        # Kondisi: Belum ada di config, ATAU nilainya kosong, ATAU nilainya masih nama bawaan package (contoh: clienu)
+        if pkg not in config["akun_labels"] or config["akun_labels"][pkg] == "" or config["akun_labels"][pkg] == short_pkg:
+            
+            info(f"Mencoba deteksi otomatis Username untuk {short_pkg}...")
+            username = None
+            
+            try:
+                # Jurus Root: Dump semua file XML konfigurasi internal Roblox
+                cmd = ["su", "-c", f"cat /data/data/{pkg}/shared_prefs/*.xml"]
+                result = subprocess.run(cmd, capture_output=True, text=True, stderr=subprocess.DEVNULL)
+                output = result.stdout
+                
+                # Cari pattern yang nyimpen Username menggunakan Regex
+                # Roblox sering menyimpan di format <string name="Username">NAMA_AKUN</string>
+                match = re.search(r'name="[^"]*(?i)username[^"]*">([^<]+)</string>', output)
+                if match:
+                    username = match.group(1).strip()
+            except Exception:
+                pass
+                
+            if username:
+                success(f"Akun {i} : Berhasil mendeteksi otomatis [{username}]")
+                config["akun_labels"][pkg] = username
+                ada_perubahan = True
+            else:
+                warning(f"Gagal deteksi otomatis (Pastikan akun sudah login di game).")
+                label = input(f"[>] Masukkan Nama Akun manual untuk clone {short_pkg}:\n> ").strip()
+                if not label:
+                    label = short_pkg # Fallback kalau dikosongin
+                config["akun_labels"][pkg] = label
+                ada_perubahan = True
         else:
-            success(f"Clone {short_pkg} : Diset sebagai [{config['akun_labels'][pkg]}]")
+            success(f"Akun {i} : Diset sebagai [{config['akun_labels'][pkg]}]")
 
     if ada_perubahan:
         save_config(config)
@@ -253,11 +278,11 @@ def verify_ps_tiap_akun(config, selected_packages):
     for i, pkg in enumerate(selected_packages, start=1):
         label = config.get("akun_labels", {}).get(pkg, pkg)
         if pkg not in config["ps_tiap_akun"] or config["ps_tiap_akun"][pkg] == "":
-            link = input(f"[>] Masukkan Link PS khusus untuk akun {label}:\n> ").strip()
+            link = input(f"[>] Masukkan Link PS khusus untuk akun [{label}]:\n> ").strip()
             config["ps_tiap_akun"][pkg] = link
             ada_perubahan = True
         else:
-            success(f"Akun {label} : Link PS sudah tersimpan.")
+            success(f"Akun [{label}] : Link PS sudah tersimpan.")
 
     if ada_perubahan:
         save_config(config)
@@ -496,7 +521,7 @@ def main():
         success(package)
     print()
     
-    # Memastikan tiap akun punya Label/Nama
+    # Memastikan tiap akun punya Label/Nama, menggunakan deteksi otomatis via Root
     config = verify_akun_labels(config, selected)
     print()
 
@@ -549,4 +574,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-                  
+        
