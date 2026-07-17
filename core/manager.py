@@ -3,12 +3,16 @@ import sys
 import select
 import urllib.request
 import json
+import os
 
 from core.monitor import create_monitors
 from core.memory import get_ram
 from core.dashboard import draw_dashboard
 from core.watchdog import Watchdog
 from core.recovery import force_stop
+
+# File buat nyimpen memori ID Panel sebelumnya
+PANEL_FILE = os.path.expanduser("~/.cielhub_panel_id")
 
 class Manager:
 
@@ -38,8 +42,36 @@ class Manager:
         # Variabel buat Panel Discord
         self.panel_message_id = None
         self.last_panel_update = 0
+        self.webhook_url = self.config.get("discord_webhook", "").strip().rstrip("/")
+        
+        # Eksekusi Pembersihan Panel Lama saat script baru nyala
+        if self.webhook_url:
+            self.delete_old_panel()
         
         self.running = False
+
+    # ==========================================
+    # Auto-Delete Panel Lama
+    # ==========================================
+    def delete_old_panel(self):
+        try:
+            if os.path.exists(PANEL_FILE):
+                with open(PANEL_FILE, "r") as f:
+                    old_id = f.read().strip()
+                
+                # Kalau ada jejak ID lama, kirim request DELETE ke Discord
+                if old_id:
+                    req = urllib.request.Request(
+                        f"{self.webhook_url}/messages/{old_id}",
+                        headers={'User-Agent': 'Mozilla/5.0'},
+                        method='DELETE'
+                    )
+                    urllib.request.urlopen(req, timeout=5)
+                
+                # Hapus file memorinya biar ga menuhin sistem
+                os.remove(PANEL_FILE)
+        except Exception:
+            pass # Cuekin kalo error (misal pesannya udah lu hapus duluan secara manual di Discord)
 
     # ==========================================
     # Monitor Engine
@@ -85,8 +117,7 @@ class Manager:
     # Discord Panel Engine
     # ==========================================
     def update_discord_panel(self):
-        webhook_url = self.config.get("discord_webhook", "").strip()
-        if not webhook_url:
+        if not self.webhook_url:
             return
 
         # Jeda 5 detik tiap update biar ngga kena Limit Discord (Rate Limit)
@@ -125,12 +156,10 @@ class Manager:
         }
 
         try:
-            webhook_url = webhook_url.rstrip("/")
-            
             # Kalo pesan panel belum dibuat, kirim Pesan Baru (POST)
             if not self.panel_message_id:
                 req = urllib.request.Request(
-                    f"{webhook_url}?wait=true",
+                    f"{self.webhook_url}?wait=true",
                     data=json.dumps(data).encode('utf-8'),
                     headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'},
                     method='POST'
@@ -138,11 +167,18 @@ class Manager:
                 with urllib.request.urlopen(req, timeout=5) as response:
                     resp_data = json.loads(response.read().decode('utf-8'))
                     self.panel_message_id = resp_data.get('id')
+                    
+                    # SIMPAN ID PESAN BARU KE DALAM FILE MEMORI
+                    try:
+                        with open(PANEL_FILE, "w") as f:
+                            f.write(str(self.panel_message_id))
+                    except Exception:
+                        pass
             
             # Kalo udah ada, Edit (PATCH) pesan yang sama biar jadi Live Panel
             else:
                 req = urllib.request.Request(
-                    f"{webhook_url}/messages/{self.panel_message_id}",
+                    f"{self.webhook_url}/messages/{self.panel_message_id}",
                     data=json.dumps(data).encode('utf-8'),
                     headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'},
                     method='PATCH'
@@ -206,4 +242,4 @@ class Manager:
     # ==========================================
     def get_monitors(self):
         return self.monitors
-            
+    
