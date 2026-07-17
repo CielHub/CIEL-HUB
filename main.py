@@ -3,7 +3,7 @@ import subprocess
 import time
 import json
 import random
-import re # Tambahan modul regex buat nyari username
+import re
 from pathlib import Path
 
 from core.manager import Manager
@@ -216,58 +216,10 @@ def settings_menu(config):
     success("Konfigurasi berhasil disimpan.")
     return config
 
-# ==========================================
-# JOIN METHOD & LABEL AKUN (AUTO-DETECT)
-# ==========================================
 
-def verify_akun_labels(config, selected_packages):
-    if "akun_labels" not in config:
-        config["akun_labels"] = {}
-        
-    ada_perubahan = False
-    print("\n[*] Mengecek Label/Nama Akun untuk Notifikasi Discord...")
-    
-    for i, pkg in enumerate(selected_packages, start=1):
-        short_pkg = pkg.replace("com.roblox.", "")
-        
-        # Kondisi: Belum ada di config, ATAU nilainya kosong, ATAU nilainya masih nama bawaan package (contoh: clienu)
-        if pkg not in config["akun_labels"] or config["akun_labels"][pkg] == "" or config["akun_labels"][pkg] == short_pkg:
-            
-            info(f"Mencoba deteksi otomatis Username untuk {short_pkg}...")
-            username = None
-            
-            try:
-                # Jurus Root: Dump semua file XML konfigurasi internal Roblox
-                cmd = ["su", "-c", f"cat /data/data/{pkg}/shared_prefs/*.xml"]
-                result = subprocess.run(cmd, capture_output=True, text=True, stderr=subprocess.DEVNULL)
-                output = result.stdout
-                
-                # Cari pattern yang nyimpen Username menggunakan Regex
-                # Roblox sering menyimpan di format <string name="Username">NAMA_AKUN</string>
-                match = re.search(r'name="[^"]*(?i)username[^"]*">([^<]+)</string>', output)
-                if match:
-                    username = match.group(1).strip()
-            except Exception:
-                pass
-                
-            if username:
-                success(f"Akun {i} : Berhasil mendeteksi otomatis [{username}]")
-                config["akun_labels"][pkg] = username
-                ada_perubahan = True
-            else:
-                warning(f"Gagal deteksi otomatis (Pastikan akun sudah login di game).")
-                label = input(f"[>] Masukkan Nama Akun manual untuk clone {short_pkg}:\n> ").strip()
-                if not label:
-                    label = short_pkg # Fallback kalau dikosongin
-                config["akun_labels"][pkg] = label
-                ada_perubahan = True
-        else:
-            success(f"Akun {i} : Diset sebagai [{config['akun_labels'][pkg]}]")
-
-    if ada_perubahan:
-        save_config(config)
-        success("Label Akun berhasil disimpan!")
-    return config
+# ==========================================
+# JOIN METHOD
+# ==========================================
 
 def verify_ps_tiap_akun(config, selected_packages):
     if "ps_tiap_akun" not in config:
@@ -276,7 +228,8 @@ def verify_ps_tiap_akun(config, selected_packages):
     print("\n[*] Mengecek data Link PS untuk setiap akun...")
     
     for i, pkg in enumerate(selected_packages, start=1):
-        label = config.get("akun_labels", {}).get(pkg, pkg)
+        # Kalau belum kedetect username, bakal nampilin nama package nya dulu buat identifikasi
+        label = config.get("akun_labels", {}).get(pkg, pkg.replace("com.roblox.", ""))
         if pkg not in config["ps_tiap_akun"] or config["ps_tiap_akun"][pkg] == "":
             link = input(f"[>] Masukkan Link PS khusus untuk akun [{label}]:\n> ").strip()
             config["ps_tiap_akun"][pkg] = link
@@ -379,7 +332,7 @@ def select_packages(packages):
         warning("Tidak ada package yang dipilih.")
 
 # ==========================================
-# LAUNCHER
+# LAUNCHER & AUTO-DETECT LOGIC
 # ==========================================
 
 def clear_cache(package, silent=False):
@@ -456,8 +409,51 @@ def wait_until_foreground(package, timeout=20):
             success("Roblox siap.")
             return True
         time.sleep(1)
-    warning("Timeout, lanjut join...")
+    warning("Timeout, lanjut eksekusi berikutnya...")
     return True
+
+def detect_single_username(pkg, config, index):
+    """Jalanin ini persis setelah game masuk ke foreground biar datanya fresh"""
+    if "akun_labels" not in config:
+        config["akun_labels"] = {}
+        
+    short_pkg = pkg.replace("com.roblox.", "")
+    
+    # Kalo labelnya masih kosong atau masih pake nama package default
+    if pkg not in config["akun_labels"] or config["akun_labels"][pkg] == "" or config["akun_labels"][pkg] == short_pkg:
+        info(f"Mencoba deteksi otomatis Username dari {short_pkg}...")
+        username = None
+        
+        try:
+            # Kasih jeda dikit biar game sempet nulis data xml ke storage
+            time.sleep(2)
+            cmd = ["su", "-c", f"cat /data/data/{pkg}/shared_prefs/*.xml"]
+            result = subprocess.run(cmd, capture_output=True, text=True, stderr=subprocess.DEVNULL)
+            output = result.stdout
+            
+            # Scan 1: Format XML standar
+            match = re.search(r'(?i)<string name="[^"]*username[^"]*">([^<]+)</string>', output)
+            if match:
+                username = match.group(1).strip()
+            else:
+                # Scan 2: Kalau formatnya JSON atau raw text
+                match_alt = re.search(r'(?i)"username"\s*:\s*"([^"]+)"', output)
+                if match_alt:
+                    username = match_alt.group(1).strip()
+        except Exception:
+            pass
+            
+        if username:
+            success(f"Akun {index} : Berhasil mendeteksi otomatis [{username}]")
+            config["akun_labels"][pkg] = username
+        else:
+            warning(f"Gagal mendeteksi otomatis Username.")
+            print("\033[93m[!] Silakan kembali ke Termux sebentar untuk input nama manual!\033[0m")
+            label = input(f"[>] Masukkan Nama Akun manual untuk clone {short_pkg}:\n> ").strip()
+            config["akun_labels"][pkg] = label if label else short_pkg
+            
+        save_config(config)
+    return config
 
 def join_private_server(package, config):
     method = config.get("join_method")
@@ -473,8 +469,8 @@ def join_private_server(package, config):
         warning(f"Private Server Link untuk {package} kosong/tidak ditemukan.")
         return
 
-    info("Menunggu Roblox siap...")
-    time.sleep(8)
+    info("Menunggu sebentar sebelum Join...")
+    time.sleep(5)
     info(f"Join Private Server untuk {package}...")
 
     result = subprocess.run(
@@ -520,10 +516,6 @@ def main():
     for package in selected:
         success(package)
     print()
-    
-    # Memastikan tiap akun punya Label/Nama, menggunakan deteksi otomatis via Root
-    config = verify_akun_labels(config, selected)
-    print()
 
     config = join_method_menu(config, selected)
     print()
@@ -531,9 +523,16 @@ def main():
     try:
         total_clones = len(selected)
         for i, package in enumerate(selected):
+            # 1. Buka gamenya dulu
             if smart_launch(package):
+                
+                # 2. SEKARANG baru kita deteksi pas udah masuk game (Flow baru)
+                config = detect_single_username(package, config, i + 1)
+                
+                # 3. Lanjut Join
                 join_private_server(package, config)
                 
+                # 4. Tunggu Delay Acak sebelum akun berikutnya
                 if i < total_clones - 1:
                     min_delay = config.get("staggered_delay_min", 25)
                     max_delay = config.get("staggered_delay_max", 40)
@@ -549,6 +548,7 @@ def main():
 
         success("Semua clone berhasil dijalankan.")
 
+        # Kirim config terbaru yang udah ada labelnya ke Manager biar Webhooknya bener
         manager = Manager(
             selected,
             config,
@@ -574,4 +574,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-        
+            
