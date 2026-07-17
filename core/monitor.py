@@ -9,7 +9,6 @@ STATUS_OFFLINE = "[ER] Offline"
 class CloneMonitor:
 
     def __init__(self, package, config):
-
         self.package = package
         self.config = config 
         
@@ -28,6 +27,9 @@ class CloneMonitor:
         # ==========================================
         self.session_start = time.time()
         self.total_uptime = 0
+        
+        # Timer buat nge-limit pembacaan log in-game biar ga CPU heavy
+        self.last_log_check = time.time()
 
         # ==========================================
         # Runtime State
@@ -192,6 +194,33 @@ class CloneMonitor:
             return False
 
     # ==========================================
+    # In-Game Error Scanner (Log Reader)
+    # ==========================================
+    def check_in_game_error(self):
+        try:
+            # Cari 1 file log Roblox yang paling baru ditulis
+            cmd_find = f"su -c 'ls -t /sdcard/Android/data/{self.package}/files/logs/*.log 2>/dev/null | head -n 1'"
+            res_find = subprocess.run(cmd_find, shell=True, capture_output=True, text=True)
+            log_file = res_find.stdout.strip()
+            
+            # Kalo ga ketemu di /sdcard, cari di /data/data
+            if not log_file:
+                cmd_find = f"su -c 'ls -t /data/data/{self.package}/files/logs/*.log 2>/dev/null | head -n 1'"
+                res_find = subprocess.run(cmd_find, shell=True, capture_output=True, text=True)
+                log_file = res_find.stdout.strip()
+
+            if log_file:
+                # Cek 30 baris terakhir dari log itu, scan pakai Regex buat cari pop-up disconnect
+                cmd_check = f"su -c 'tail -n 30 {log_file} | grep -iE -m 1 \"error 278|error 277|error 268|connection lost|disconnect\"'"
+                res_check = subprocess.run(cmd_check, shell=True, capture_output=True, text=True)
+                
+                if res_check.stdout.strip():
+                    return True # Valid, akun ini kena pop-up putus koneksi!
+        except Exception:
+            pass
+        return False
+
+    # ==========================================
     # Update
     # ==========================================
 
@@ -200,8 +229,18 @@ class CloneMonitor:
             return
 
         alive = self.process_alive()
+        now = time.time()
 
         if alive:
+            # Pindai log internal tiap 20 detik untuk menghemat penggunaan CPU Android
+            if now - self.last_log_check > 20:
+                self.last_log_check = now
+                if self.check_in_game_error():
+                    # Jika game masih idup tapi kedetect pop-up error, manipulasi status jadi offline
+                    if self.status != STATUS_OFFLINE:
+                        self.set_offline() 
+                    return
+
             if self.status != STATUS_FARMING:
                 self.set_farming()
         else:
