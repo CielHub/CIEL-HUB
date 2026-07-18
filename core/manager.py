@@ -2,6 +2,7 @@ import time
 import sys
 import select
 import urllib.request
+import urllib.error
 import json
 import os
 
@@ -13,6 +14,17 @@ from core.recovery import force_stop
 
 # File buat nyimpen memori ID Panel sebelumnya
 PANEL_FILE = os.path.expanduser("~/.cielhub_panel_id")
+
+# ==========================================
+# Error Logger
+# Mencegah error merusak tampilan terminal dengan membuangnya ke file log
+# ==========================================
+def log_error(err_msg):
+    try:
+        with open("cielhub_error.log", "a") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {err_msg}\n")
+    except:
+        pass
 
 class Manager:
 
@@ -42,6 +54,7 @@ class Manager:
         # Variabel buat Panel Discord
         self.panel_message_id = None
         self.last_panel_update = 0
+        self.last_panel_content = "" # Memori teks Smart Webhook
         self.webhook_url = self.config.get("discord_webhook", "").strip().rstrip("/")
         
         # Eksekusi Pembersihan Panel Lama saat script baru nyala
@@ -70,8 +83,11 @@ class Manager:
                 
                 # Hapus file memorinya biar ga menuhin sistem
                 os.remove(PANEL_FILE)
-        except Exception:
-            pass # Cuekin kalo error (misal pesannya udah lu hapus duluan secara manual di Discord)
+        except urllib.error.HTTPError as e:
+            # Seringkali pesan udah dihapus manual di Discord
+            log_error(f"Pesan ID {old_id} mungkin sudah dihapus manual. (HTTP {e.code})")
+        except Exception as e:
+            log_error(f"Gagal delete old panel: {e}") 
 
     # ==========================================
     # Monitor Engine
@@ -98,8 +114,8 @@ class Manager:
                 for pkg in self.packages:
                     try:
                         self.cache_cleaner(pkg, silent=True) 
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log_error(f"Gagal membersihkan cache {pkg}: {e}")
                 self.last_cache_clear = time.time()
 
     # ==========================================
@@ -114,17 +130,16 @@ class Manager:
         )
 
     # ==========================================
-    # Discord Panel Engine
+    # Discord Panel Engine (Smart Webhook)
     # ==========================================
     def update_discord_panel(self):
         if not self.webhook_url:
             return
 
-        # Jeda 5 detik tiap update biar ngga kena Limit Discord (Rate Limit)
+        # Jeda dasar untuk keamanan (Rate Limit fallback)
         now = time.time()
-        if now - self.last_panel_update < 5:
+        if now - self.last_panel_update < 3:
             return
-        self.last_panel_update = now
 
         device_name = self.config.get("device_name", "Device-1")
         
@@ -146,10 +161,20 @@ class Manager:
             
             desc_lines.append(f"{icon} **{m.akun_label}** - {plain_status} (`{timer}`)")
 
+        current_panel_content = "\n\n".join(desc_lines)
+
+        # LOGIKA SMART WEBHOOK: Cek apakah ada perubahan status yang berarti
+        if current_panel_content == self.last_panel_content:
+            return # Batalkan request jika teksnya masih persis sama dengan sebelumnya
+        
+        # Jika ada perubahan, simpan memori teks baru
+        self.last_panel_content = current_panel_content
+        self.last_panel_update = now
+
         data = {
             "embeds": [{
                 "title": f"🚀 CIEL-HUB PANEL | {device_name}",
-                "description": "\n\n".join(desc_lines),
+                "description": current_panel_content,
                 "color": 3447003, # Biru
                 "footer": {"text": "Live Auto Update • Ciel-Hub"}
             }]
@@ -172,8 +197,8 @@ class Manager:
                     try:
                         with open(PANEL_FILE, "w") as f:
                             f.write(str(self.panel_message_id))
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log_error(f"Gagal menulis ID ke {PANEL_FILE}: {e}")
             
             # Kalo udah ada, Edit (PATCH) pesan yang sama biar jadi Live Panel
             else:
@@ -184,8 +209,12 @@ class Manager:
                     method='PATCH'
                 )
                 urllib.request.urlopen(req, timeout=5)
-        except Exception:
-            # Kalau gagal (misal pesannya ga sengaja kehapus), reset ID biar bikin baru lagi
+        except urllib.error.HTTPError as e:
+            log_error(f"Discord Webhook ditolak (HTTP {e.code}). Mungkin ID pesan usang.")
+            # Reset ID supaya bikin pesan baru di iterasi selanjutnya
+            self.panel_message_id = None 
+        except Exception as e:
+            log_error(f"Discord Webhook Error: {e}")
             self.panel_message_id = None
 
     # ==========================================
@@ -234,12 +263,12 @@ class Manager:
         for package in self.packages:
             try:
                 force_stop(package)
-            except Exception:
-                pass
+            except Exception as e:
+                log_error(f"Gagal force-stop aplikasi {package}: {e}")
 
     # ==========================================
     # Getter
     # ==========================================
     def get_monitors(self):
         return self.monitors
-    
+        
