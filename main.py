@@ -101,7 +101,8 @@ def load_config():
     config = DEFAULT_CONFIG.copy()
     if CONFIG_FILE.exists():
         try:
-            
+
+
 def settings_menu(config):
     print()
     title("PENGATURAN")
@@ -196,22 +197,11 @@ def settings_menu(config):
     print()
     success("Konfigurasi berhasil disimpan.")
     return config
-            with open(CONFIG_FILE, "r") as f:
-                old = json.load(f)
-            
-            if "staggered_delay" in old:
-                old["staggered_delay_min"] = old["staggered_delay"]
-                old["staggered_delay_max"] = old["staggered_delay"] + 10
-                del old["staggered_delay"]
-                
-            if "auto_clear_cache" in old:
-                old["auto_clear_cache_minutes"] = 60 if old["auto_clear_cache"] else 0
-                del old["auto_clear_cache"]
+    
 
-            config.update(old)
-        except Exception:
-            pass
-    return config
+            
+def settings_menu(config):
+    print()
 
 def save_config(config):
     with open(CONFIG_FILE, "w") as f:
