@@ -146,13 +146,16 @@ if DISCORD_AVAILABLE:
             self.last_content = ""
 
         async def setup_hook(self):
-            # Bersihkan pesan lama bot saat baru nyala
+            # Bersihkan SEMUA pesan lama bot saat baru nyala (Radar diperluas)
             channel = self.get_channel(self.channel_id)
             if channel:
-                async for msg in channel.history(limit=15):
+                # Naikin limit jadi 100 biar panel lama yang tenggelam tetep kehapus
+                async for msg in channel.history(limit=100):
                     if msg.author == self.user:
-                        try: await msg.delete()
-                        except: pass
+                        try: 
+                            await msg.delete()
+                        except: 
+                            pass
             
             self.update_task.start()
 
@@ -322,4 +325,4 @@ class Manager:
 
     def get_monitors(self):
         return self.monitors
-                
+                    
