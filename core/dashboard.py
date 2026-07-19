@@ -61,22 +61,22 @@ def draw_dashboard(monitors, ram_used, ram_total):
     # ==========================================
     # LOGIKA SMART BANNER (AUTO-HIDE)
     # ==========================================
-    # Tabel utama makan sekitar 7 baris + jumlah akun lu
-    butuh_baris = 7 + len(monitors)
+    # Tabel utama makan sekitar 6 baris + jumlah akun lu
+    butuh_baris = 6 + len(monitors)
     
     # Kalau tinggi terminal sisa banyak (lebih dari butuh_baris + 8 baris buat logo), tampilin Logo
     if HEIGHT >= (butuh_baris + 8):
-        ascii_ciel = [
-            " ██████╗██╗███████╗██╗     ",
-            "██╔════╝██║██╔════╝██║     ",
-            "██║     ██║█████╗  ██║     ",
-            "██║     ██║██╔══╝  ██║     ",
-            "╚██████╗██║███████╗███████╗",
-            " ╚═════╝╚═╝╚══════╝╚══════╝"
+        # Pakai awalan 'r' biar backslash (\) ga dibaca sebagai karakter khusus
+        ascii_chiel = [
+            r"   ________  ______________ ",
+            r"  / ____/ / / /  _/ ____/ / ",
+            r" / /   / /_/ // // __/ / /  ",
+            r"/ /___/ __  // // /___/ /___",
+            r"\____/_/ /_/___/_____/_____/"
         ]
         
         print()
-        for line_art in ascii_ciel:
+        for line_art in ascii_chiel:
             art_text = line_art.center(WIDTH + 4)
             print(color(art_text, CYAN))
         print()
@@ -85,11 +85,9 @@ def draw_dashboard(monitors, ram_used, ram_total):
         print()
 
     # ==========================================
-    # Header Tabel
+    # Header Tabel (Header Nama Dihilangkan)
     # ==========================================
     print(color("╔" + "═" * (WIDTH + 2) + "╗", BLUE))
-    print_header_row("🚀 CIEL-HUB v4.1 (Tempest)", WHITE, WIDTH)
-    print(color("╠" + "═" * (WIDTH + 2) + "╣", BLUE))
     
     print_header_row(f"RAM      : {ram_used:.2f}/{ram_total:.2f} GB ({percent:.0f}%)", "", WIDTH)
     print_header_row(f"Online   : {online} | Offline : {offline} | Recover : {recovering}", "", WIDTH)
@@ -139,4 +137,3 @@ def draw_dashboard(monitors, ram_used, ram_total):
         print(line_str)
 
     print(color("╚" + "═" * (WIDTH + 2) + "╝", BLUE))
-    
