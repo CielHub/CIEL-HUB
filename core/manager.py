@@ -31,12 +31,11 @@ def log_error(err_msg):
         pass
 
 # ==========================================
-# DISCORD UI (Dropdown & Tombol)
+# DISCORD UI (Dropdown, Tombol, & Screenshot)
 # ==========================================
 if DISCORD_AVAILABLE:
     class PanelView(discord.ui.View):
         def __init__(self, manager):
-            # timeout=None biar tombolnya ga basi/expired
             super().__init__(timeout=None)
             self.manager = manager
             self.selected_account = None
@@ -58,30 +57,49 @@ if DISCORD_AVAILABLE:
             self.select.callback = self.select_callback
             self.add_item(self.select)
 
-            # 2. Bikin Tombol Restart Individual - Baris 1
-            btn_restart = discord.ui.Button(label="Restart Akun", style=discord.ButtonStyle.primary, emoji="🔄", custom_id="btn_restart", row=1)
+            # 2. Tombol Restart Individual - Baris 1
+            btn_restart = discord.ui.Button(label="Restart", style=discord.ButtonStyle.primary, emoji="🔄", custom_id="btn_restart", row=1)
             btn_restart.callback = self.restart_callback
             self.add_item(btn_restart)
 
-            # 3. Bikin Tombol Kill Individual - Baris 1
-            btn_kill = discord.ui.Button(label="Kill (Matikan Total)", style=discord.ButtonStyle.danger, emoji="💀", custom_id="btn_kill", row=1)
+            # 3. Tombol Kill Individual - Baris 1
+            btn_kill = discord.ui.Button(label="Kill", style=discord.ButtonStyle.danger, emoji="💀", custom_id="btn_kill", row=1)
             btn_kill.callback = self.kill_callback
             self.add_item(btn_kill)
 
-            # 4. Bikin Tombol Restart SEMUA (Sapu Jagat) - Baris 2
+            # 4. Tombol Cek Layar (Mata-mata) - Baris 1
+            btn_snap = discord.ui.Button(label="Cek Layar", style=discord.ButtonStyle.secondary, emoji="📸", custom_id="btn_snap", row=1)
+            btn_snap.callback = self.snap_callback
+            self.add_item(btn_snap)
+
+            # 5. Tombol Restart SEMUA (Sapu Jagat) - Baris 2
             btn_restart_all = discord.ui.Button(label="Restart Semua", style=discord.ButtonStyle.success, emoji="🌍", custom_id="btn_restart_all", row=2)
             btn_restart_all.callback = self.restart_all_callback
             self.add_item(btn_restart_all)
 
-            # 5. Bikin Tombol Kill SEMUA (Nuke) - Baris 2
-            btn_kill_all = discord.ui.Button(label="Nuke (Kill Semua)", style=discord.ButtonStyle.secondary, emoji="💣", custom_id="btn_kill_all", row=2)
+            # 6. Tombol Kill SEMUA (Nuke) - Baris 2
+            btn_kill_all = discord.ui.Button(label="Nuke Semua", style=discord.ButtonStyle.secondary, emoji="💣", custom_id="btn_kill_all", row=2)
             btn_kill_all.callback = self.kill_all_callback
             self.add_item(btn_kill_all)
 
         async def select_callback(self, interaction: discord.Interaction):
             self.selected_account = int(self.select.values[0])
             m = self.manager.monitors[self.selected_account]
-            await interaction.response.send_message(f"🎯 Terkunci ke target: **{m.akun_label}**. Silakan klik tombol Restart atau Kill di bawah.", ephemeral=True)
+            await interaction.response.send_message(f"🎯 Terkunci ke target: **{m.akun_label}**. Silakan klik tombol aksi di bawah.", ephemeral=True)
+
+        async def snap_callback(self, interaction: discord.Interaction):
+            await interaction.response.defer(ephemeral=True)
+            try:
+                # Perintah root untuk ambil screenshot
+                path = "/sdcard/ciel_snap.png"
+                subprocess.run(["su", "-c", f"screencap -p {path}"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                
+                if os.path.exists(path):
+                    await interaction.followup.send(content="📸 Kondisi layar saat ini:", file=discord.File(path), ephemeral=True)
+                else:
+                    await interaction.followup.send("❌ Gagal ambil screenshot. Pastikan Termux punya akses Root (Shizuku/Magisk).", ephemeral=True)
+            except Exception as e:
+                await interaction.followup.send(f"❌ Error sistem: {str(e)}", ephemeral=True)
 
         async def restart_callback(self, interaction: discord.Interaction):
             if self.selected_account is None:
@@ -106,10 +124,9 @@ if DISCORD_AVAILABLE:
                 subprocess.run(["su", "-c", f"am force-stop {m.package}"], stdin=subprocess.DEVNULL)
             except: pass
             
-            await interaction.response.send_message(f"💀 **{m.akun_label}** telah dimatikan total. Sistem Auto-Recovery tidak akan menyentuh akun ini sampai lu klik Restart lagi.", ephemeral=True)
+            await interaction.response.send_message(f"💀 **{m.akun_label}** telah dimatikan total. Sistem Auto-Recovery dihentikan untuk akun ini.", ephemeral=True)
 
         async def restart_all_callback(self, interaction: discord.Interaction):
-            # Pakai defer biar Discord ga ngira botnya ngelag kalau prosesnya agak lama
             await interaction.response.defer(ephemeral=True) 
             count = 0
             for m in self.manager.monitors:
@@ -128,7 +145,7 @@ if DISCORD_AVAILABLE:
                     subprocess.run(["su", "-c", f"am force-stop {m.package}"], stdin=subprocess.DEVNULL)
                 except: pass
                 count += 1
-            await interaction.followup.send(f"💣 **NUKE DIJATUHKAN!** {count} Akun berhasil dimatikan paksa dan tidak akan di-recover.", ephemeral=True)
+            await interaction.followup.send(f"💣 **NUKE DIJATUHKAN!** {count} Akun berhasil dimatikan paksa.", ephemeral=True)
 
 
 # ==========================================
@@ -146,10 +163,9 @@ if DISCORD_AVAILABLE:
             self.last_content = ""
 
         async def setup_hook(self):
-            # Bersihkan SEMUA pesan lama bot saat baru nyala (Radar diperluas)
+            # Bersihkan SEMUA pesan lama bot saat baru nyala (Radar diperluas jadi 100)
             channel = self.get_channel(self.channel_id)
             if channel:
-                # Naikin limit jadi 100 biar panel lama yang tenggelam tetep kehapus
                 async for msg in channel.history(limit=100):
                     if msg.author == self.user:
                         try: 
@@ -167,7 +183,6 @@ if DISCORD_AVAILABLE:
             try:
                 desc_lines = []
                 for m in self.manager.monitors:
-                    # Logika tampilan kalau akun di-kill manual
                     if getattr(m, 'manual_kill', False):
                         icon = "💀"
                         plain_status = "Disabled (Manual Kill)"
@@ -186,7 +201,7 @@ if DISCORD_AVAILABLE:
 
                 content = "\n\n".join(desc_lines)
                 
-                # Smart Update: Cuma kirim/edit pesan ke Discord kalau ada status yang berubah
+                # Cuma update Discord kalau ada perubahan status biar ga spam limit API
                 if content == self.last_content:
                     return
                 
@@ -206,7 +221,6 @@ if DISCORD_AVAILABLE:
 
                 view = PanelView(self.manager)
 
-                # Kirim atau Edit panel UI
                 if not self.panel_msg:
                     self.panel_msg = await channel.send(embed=embed, view=view)
                 else:
@@ -242,7 +256,6 @@ class Manager:
         self.channel_id = self.config.get("discord_channel_id", "").strip()
         self.bot_thread = None
 
-        # Jalankan pekerja bayangan Discord Bot jika Token tersedia
         if self.bot_token and self.channel_id:
             if DISCORD_AVAILABLE:
                 self.start_discord_bot()
@@ -269,9 +282,6 @@ class Manager:
             monitor.update()
 
     def update_watchdog(self):
-        # HACK CERDAS: 
-        # Sembunyikan sementara akun yang sedang di-kill manual dari penglihatan Watchdog
-        # Biar Watchdog ga nyoba-nyoba nge-recover akun tersebut.
         active_monitors = [m for m in self.monitors if not getattr(m, 'manual_kill', False)]
         original_monitors = self.watchdog.monitors
         
@@ -325,4 +335,4 @@ class Manager:
 
     def get_monitors(self):
         return self.monitors
-                    
+            
