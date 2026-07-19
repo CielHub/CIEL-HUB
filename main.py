@@ -87,8 +87,8 @@ DEFAULT_CONFIG = {
     "staggered_delay_min": 25,
     "staggered_delay_max": 40,
     "auto_clear_cache_minutes": 60, 
-    "discord_bot_token": "",     # <--- INI YANG BARU
-    "discord_channel_id": "",    # <--- INI YANG BARU
+    "discord_bot_token": "",     
+    "discord_channel_id": "",    
     "device_name": "Device-1",
     "akun_labels": {},         
     "join_method": "private_server",
@@ -101,7 +101,30 @@ def load_config():
     config = DEFAULT_CONFIG.copy()
     if CONFIG_FILE.exists():
         try:
+            with open(CONFIG_FILE, "r") as f:
+                old = json.load(f)
+            
+            if "staggered_delay" in old:
+                old["staggered_delay_min"] = old["staggered_delay"]
+                old["staggered_delay_max"] = old["staggered_delay"] + 10
+                del old["staggered_delay"]
+                
+            if "auto_clear_cache" in old:
+                old["auto_clear_cache_minutes"] = 60 if old["auto_clear_cache"] else 0
+                del old["auto_clear_cache"]
 
+            config.update(old)
+        except Exception:
+            pass
+    return config
+
+def save_config(config):
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config, f, indent=4)
+
+# ==========================================
+# SETTINGS
+# ==========================================
 
 def settings_menu(config):
     print()
@@ -197,11 +220,7 @@ def settings_menu(config):
     print()
     success("Konfigurasi berhasil disimpan.")
     return config
-    
 
-            
-def settings_menu(config):
-    print()
 
 def save_config(config):
     with open(CONFIG_FILE, "w") as f:
