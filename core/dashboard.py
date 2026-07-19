@@ -21,8 +21,6 @@ WHITE = "\033[97m"
 # ==========================================
 
 def clear():
-    # \033c akan me-reset state terminal sepenuhnya kalau sempet ke-hijack
-    # \033[2J\033[3J\033[H bersihin layar dan history buffer
     sys.stdout.write('\033c\033[2J\033[3J\033[H')
     sys.stdout.flush()
 
@@ -43,12 +41,14 @@ def draw_dashboard(monitors, ram_used, ram_total):
     clear()
     
     try:
-        term_width = shutil.get_terminal_size().columns
-        WIDTH = min(DEFAULT_WIDTH, term_width - 4)
+        term_size = shutil.get_terminal_size()
+        WIDTH = min(DEFAULT_WIDTH, term_size.columns - 4)
+        HEIGHT = term_size.lines # Deteksi tinggi layar HP
         if WIDTH < 36: 
             WIDTH = 36 
     except Exception:
         WIDTH = DEFAULT_WIDTH
+        HEIGHT = 24
         
     percent = 0
     if ram_total:
@@ -59,22 +59,30 @@ def draw_dashboard(monitors, ram_used, ram_total):
     recovering = sum(m.recovering() for m in monitors)
 
     # ==========================================
-    # ASCII Banner CIEL
+    # LOGIKA SMART BANNER (AUTO-HIDE)
     # ==========================================
-    ascii_ciel = [
-        " ██████╗██╗███████╗██╗     ",
-        "██╔════╝██║██╔════╝██║     ",
-        "██║     ██║█████╗  ██║     ",
-        "██║     ██║██╔══╝  ██║     ",
-        "╚██████╗██║███████╗███████╗",
-        " ╚═════╝╚═╝╚══════╝╚══════╝"
-    ]
+    # Tabel utama makan sekitar 7 baris + jumlah akun lu
+    butuh_baris = 7 + len(monitors)
     
-    print()
-    for line_art in ascii_ciel:
-        art_text = line_art.center(WIDTH + 4)
-        print(color(art_text, CYAN))
-    print()
+    # Kalau tinggi terminal sisa banyak (lebih dari butuh_baris + 8 baris buat logo), tampilin Logo
+    if HEIGHT >= (butuh_baris + 8):
+        ascii_ciel = [
+            " ██████╗██╗███████╗██╗     ",
+            "██╔════╝██║██╔════╝██║     ",
+            "██║     ██║█████╗  ██║     ",
+            "██║     ██║██╔══╝  ██║     ",
+            "╚██████╗██║███████╗███████╗",
+            " ╚═════╝╚═╝╚══════╝╚══════╝"
+        ]
+        
+        print()
+        for line_art in ascii_ciel:
+            art_text = line_art.center(WIDTH + 4)
+            print(color(art_text, CYAN))
+        print()
+    else:
+        # Kalau HP miring dan ga muat, logo ilang otomatis biar ga nabrak/nge-glitch
+        print()
 
     # ==========================================
     # Header Tabel
@@ -131,4 +139,4 @@ def draw_dashboard(monitors, ram_used, ram_total):
         print(line_str)
 
     print(color("╚" + "═" * (WIDTH + 2) + "╝", BLUE))
-        
+    
