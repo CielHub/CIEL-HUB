@@ -40,7 +40,6 @@ if DISCORD_AVAILABLE:
             self.manager = manager
             self.selected_account = None
 
-            # 1. Bikin Dropdown (Select Menu) - Baris 0
             options = []
             for i, m in enumerate(self.manager.monitors):
                 label = m.akun_label if m.akun_label else m.package.split('.')[-1]
@@ -57,27 +56,22 @@ if DISCORD_AVAILABLE:
             self.select.callback = self.select_callback
             self.add_item(self.select)
 
-            # 2. Tombol Restart Individual - Baris 1
             btn_restart = discord.ui.Button(label="Restart", style=discord.ButtonStyle.primary, emoji="🔄", custom_id="btn_restart", row=1)
             btn_restart.callback = self.restart_callback
             self.add_item(btn_restart)
 
-            # 3. Tombol Kill Individual - Baris 1
             btn_kill = discord.ui.Button(label="Kill", style=discord.ButtonStyle.danger, emoji="💀", custom_id="btn_kill", row=1)
             btn_kill.callback = self.kill_callback
             self.add_item(btn_kill)
 
-            # 4. Tombol Cek Layar (Mata-mata) - Baris 1
             btn_snap = discord.ui.Button(label="Cek Layar", style=discord.ButtonStyle.secondary, emoji="📸", custom_id="btn_snap", row=1)
             btn_snap.callback = self.snap_callback
             self.add_item(btn_snap)
 
-            # 5. Tombol Restart SEMUA (Sapu Jagat) - Baris 2
             btn_restart_all = discord.ui.Button(label="Restart Semua", style=discord.ButtonStyle.success, emoji="🌍", custom_id="btn_restart_all", row=2)
             btn_restart_all.callback = self.restart_all_callback
             self.add_item(btn_restart_all)
 
-            # 6. Tombol Kill SEMUA (Nuke) - Baris 2
             btn_kill_all = discord.ui.Button(label="Nuke Semua", style=discord.ButtonStyle.secondary, emoji="💣", custom_id="btn_kill_all", row=2)
             btn_kill_all.callback = self.kill_all_callback
             self.add_item(btn_kill_all)
@@ -90,12 +84,27 @@ if DISCORD_AVAILABLE:
         async def snap_callback(self, interaction: discord.Interaction):
             await interaction.response.defer(ephemeral=True)
             try:
-                # Perintah root untuk ambil screenshot
                 path = "/sdcard/ciel_snap.png"
-                subprocess.run(["su", "-c", f"screencap -p {path}"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                
+                with self.manager.ui_lock:
+                    subprocess.run(["su", "-c", f"screencap -p {path}"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    print('\033[2J\033[H', end='', flush=True)
                 
                 if os.path.exists(path):
-                    await interaction.followup.send(content="📸 Kondisi layar saat ini:", file=discord.File(path), ephemeral=True)
+                    file = discord.File(path, filename="ciel_snap.png")
+                    caption = "📸 **LIVE SCREENSHOT**\n*(Gambar ini akan otomatis ditimpa setiap lu klik Cek Layar)*"
+                    
+                    # Logika Replace/Timpa Foto Lama
+                    if self.manager.snap_msg:
+                        try:
+                            await self.manager.snap_msg.edit(content=caption, attachments=[file])
+                            await interaction.followup.send("✅ Foto layar berhasil di-update di atas!", ephemeral=True)
+                        except discord.NotFound:
+                            self.manager.snap_msg = await interaction.channel.send(content=caption, file=file)
+                            await interaction.followup.send("✅ Panel screenshot baru dibuat!", ephemeral=True)
+                    else:
+                        self.manager.snap_msg = await interaction.channel.send(content=caption, file=file)
+                        await interaction.followup.send("✅ Panel screenshot pertama dibuat!", ephemeral=True)
                 else:
                     await interaction.followup.send("❌ Gagal ambil screenshot. Pastikan Termux punya akses Root (Shizuku/Magisk).", ephemeral=True)
             except Exception as e:
@@ -163,7 +172,6 @@ if DISCORD_AVAILABLE:
             self.last_content = ""
 
         async def setup_hook(self):
-            # Bersihkan SEMUA pesan lama bot saat baru nyala (Radar diperluas jadi 100)
             channel = self.get_channel(self.channel_id)
             if channel:
                 async for msg in channel.history(limit=100):
@@ -201,7 +209,6 @@ if DISCORD_AVAILABLE:
 
                 content = "\n\n".join(desc_lines)
                 
-                # Cuma update Discord kalau ada perubahan status biar ga spam limit API
                 if content == self.last_content:
                     return
                 
@@ -252,9 +259,13 @@ class Manager:
         self.last_cache_clear = time.time()
         self.running = False
         
+        self.ui_lock = threading.Lock()
+        
         self.bot_token = self.config.get("discord_bot_token", "").strip()
         self.channel_id = self.config.get("discord_channel_id", "").strip()
+        
         self.bot_thread = None
+        self.snap_msg = None  # Variabel buat nyimpen ingatan foto lama biar bisa ditimpa
 
         if self.bot_token and self.channel_id:
             if DISCORD_AVAILABLE:
@@ -312,7 +323,9 @@ class Manager:
                 self.update_monitors()
                 self.update_watchdog()
                 self.update_cache_cleaner()
-                self.update_dashboard()
+                
+                with self.ui_lock:
+                    self.update_dashboard()
                 
                 i, o, e = select.select([sys.stdin], [], [], 1)
                 if i:
@@ -335,4 +348,4 @@ class Manager:
 
     def get_monitors(self):
         return self.monitors
-            
+                
