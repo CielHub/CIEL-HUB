@@ -41,7 +41,7 @@ if DISCORD_AVAILABLE:
             self.manager = manager
             self.selected_account = None
 
-            # 1. Bikin Dropdown (Select Menu)
+            # 1. Bikin Dropdown (Select Menu) - Baris 0
             options = []
             for i, m in enumerate(self.manager.monitors):
                 label = m.akun_label if m.akun_label else m.package.split('.')[-1]
@@ -52,25 +52,35 @@ if DISCORD_AVAILABLE:
                 min_values=1, 
                 max_values=1, 
                 options=options,
-                custom_id="select_account"
+                custom_id="select_account",
+                row=0
             )
             self.select.callback = self.select_callback
             self.add_item(self.select)
 
-            # 2. Bikin Tombol Restart
-            btn_restart = discord.ui.Button(label="Restart Akun", style=discord.ButtonStyle.primary, emoji="🔄", custom_id="btn_restart")
+            # 2. Bikin Tombol Restart Individual - Baris 1
+            btn_restart = discord.ui.Button(label="Restart Akun", style=discord.ButtonStyle.primary, emoji="🔄", custom_id="btn_restart", row=1)
             btn_restart.callback = self.restart_callback
             self.add_item(btn_restart)
 
-            # 3. Bikin Tombol Kill
-            btn_kill = discord.ui.Button(label="Kill (Matikan Total)", style=discord.ButtonStyle.danger, emoji="💀", custom_id="btn_kill")
+            # 3. Bikin Tombol Kill Individual - Baris 1
+            btn_kill = discord.ui.Button(label="Kill (Matikan Total)", style=discord.ButtonStyle.danger, emoji="💀", custom_id="btn_kill", row=1)
             btn_kill.callback = self.kill_callback
             self.add_item(btn_kill)
+
+            # 4. Bikin Tombol Restart SEMUA (Sapu Jagat) - Baris 2
+            btn_restart_all = discord.ui.Button(label="Restart Semua", style=discord.ButtonStyle.success, emoji="🌍", custom_id="btn_restart_all", row=2)
+            btn_restart_all.callback = self.restart_all_callback
+            self.add_item(btn_restart_all)
+
+            # 5. Bikin Tombol Kill SEMUA (Nuke) - Baris 2
+            btn_kill_all = discord.ui.Button(label="Nuke (Kill Semua)", style=discord.ButtonStyle.secondary, emoji="💣", custom_id="btn_kill_all", row=2)
+            btn_kill_all.callback = self.kill_all_callback
+            self.add_item(btn_kill_all)
 
         async def select_callback(self, interaction: discord.Interaction):
             self.selected_account = int(self.select.values[0])
             m = self.manager.monitors[self.selected_account]
-            # ephemeral=True biar pesannya cuma bisa diliat sama lu doang
             await interaction.response.send_message(f"🎯 Terkunci ke target: **{m.akun_label}**. Silakan klik tombol Restart atau Kill di bawah.", ephemeral=True)
 
         async def restart_callback(self, interaction: discord.Interaction):
@@ -79,7 +89,7 @@ if DISCORD_AVAILABLE:
                 return
             
             m = self.manager.monitors[self.selected_account]
-            m.manual_kill = False # Cabut status manual kill (jika ada)
+            m.manual_kill = False 
             m.start_recovery(3)
             await interaction.response.send_message(f"🔄 **{m.akun_label}** sedang di-restart paksa. Watchdog akan mengambil alih.", ephemeral=True)
 
@@ -89,15 +99,37 @@ if DISCORD_AVAILABLE:
                 return
             
             m = self.manager.monitors[self.selected_account]
-            m.manual_kill = True # Tandai akun ini biar diabaikan sama Watchdog
+            m.manual_kill = True 
             m.cancel_recovery()
             
-            # Eksekusi Root Force Close di Termux
             try:
                 subprocess.run(["su", "-c", f"am force-stop {m.package}"], stdin=subprocess.DEVNULL)
             except: pass
             
             await interaction.response.send_message(f"💀 **{m.akun_label}** telah dimatikan total. Sistem Auto-Recovery tidak akan menyentuh akun ini sampai lu klik Restart lagi.", ephemeral=True)
+
+        async def restart_all_callback(self, interaction: discord.Interaction):
+            # Pakai defer biar Discord ga ngira botnya ngelag kalau prosesnya agak lama
+            await interaction.response.defer(ephemeral=True) 
+            count = 0
+            for m in self.manager.monitors:
+                m.manual_kill = False
+                m.start_recovery(3)
+                count += 1
+            await interaction.followup.send(f"🌍 **{count} Akun** sedang di-restart masal! Watchdog akan membangkitkan mereka kembali.", ephemeral=True)
+
+        async def kill_all_callback(self, interaction: discord.Interaction):
+            await interaction.response.defer(ephemeral=True)
+            count = 0
+            for m in self.manager.monitors:
+                m.manual_kill = True
+                m.cancel_recovery()
+                try:
+                    subprocess.run(["su", "-c", f"am force-stop {m.package}"], stdin=subprocess.DEVNULL)
+                except: pass
+                count += 1
+            await interaction.followup.send(f"💣 **NUKE DIJATUHKAN!** {count} Akun berhasil dimatikan paksa dan tidak akan di-recover.", ephemeral=True)
+
 
 # ==========================================
 # DISCORD BOT CLIENT
@@ -290,4 +322,4 @@ class Manager:
 
     def get_monitors(self):
         return self.monitors
-        
+                
