@@ -25,7 +25,7 @@ from core.recovery import force_stop
 # ==========================================
 def log_error(err_msg):
     try:
-        with open("cielhub_error.log", "a") as f:
+        with open("chielhub_error.log", "a") as f:
             f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {err_msg}\n")
     except:
         pass
@@ -84,17 +84,16 @@ if DISCORD_AVAILABLE:
         async def snap_callback(self, interaction: discord.Interaction):
             await interaction.response.defer(ephemeral=True)
             try:
-                path = "/sdcard/ciel_snap.png"
+                path = "/sdcard/chiel_snap.png"
                 
                 with self.manager.ui_lock:
                     subprocess.run(["su", "-c", f"screencap -p {path}"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     print('\033[2J\033[H', end='', flush=True)
                 
                 if os.path.exists(path):
-                    file = discord.File(path, filename="ciel_snap.png")
+                    file = discord.File(path, filename="chiel_snap.png")
                     caption = "📸 **LIVE SCREENSHOT**\n*(Gambar ini akan otomatis ditimpa setiap lu klik Cek Layar)*"
                     
-                    # Logika Replace/Timpa Foto Lama
                     if self.manager.snap_msg:
                         try:
                             await self.manager.snap_msg.edit(content=caption, attachments=[file])
@@ -161,7 +160,7 @@ if DISCORD_AVAILABLE:
 # DISCORD BOT CLIENT
 # ==========================================
 if DISCORD_AVAILABLE:
-    class CielBot(discord.Client):
+    class ChielBot(discord.Client):
         def __init__(self, manager):
             intents = discord.Intents.default()
             intents.message_content = True
@@ -216,7 +215,7 @@ if DISCORD_AVAILABLE:
                 device_name = self.manager.config.get("device_name", "Device-1")
                 
                 embed = discord.Embed(
-                    title=f"🚀 CIEL-HUB PANEL | {device_name}", 
+                    title=f"🚀 CHIEL-HUB PANEL | {device_name}", 
                     description=content, 
                     color=0x2b2d31
                 )
@@ -265,7 +264,7 @@ class Manager:
         self.channel_id = self.config.get("discord_channel_id", "").strip()
         
         self.bot_thread = None
-        self.snap_msg = None  # Variabel buat nyimpen ingatan foto lama biar bisa ditimpa
+        self.snap_msg = None 
 
         if self.bot_token and self.channel_id:
             if DISCORD_AVAILABLE:
@@ -277,7 +276,7 @@ class Manager:
         def run_bot():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            bot = CielBot(self)
+            bot = ChielBot(self)
             
             import logging
             logging.getLogger('discord').setLevel(logging.CRITICAL)
@@ -348,4 +347,3 @@ class Manager:
 
     def get_monitors(self):
         return self.monitors
-                
