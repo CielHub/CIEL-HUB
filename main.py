@@ -24,14 +24,13 @@ def clear():
 
 def banner():
     clear()
-    print(r"""
- ██████╗██╗███████╗██╗         ██╗  ██╗██╗   ██╗██████╗
-██╔════╝██║██╔════╝██║         ██║  ██║██║   ██║██╔══██╗
-██║     ██║█████╗  ██║         ███████║██║   ██║██████╔╝
-██║     ██║██╔══╝  ██║         ██╔══██║██║   ██║██╔══██╗
-╚██████╗██║███████╗███████╗    ██║  ██║╚██████╔╝██████╔╝
- ╚═════╝╚═╝╚══════╝╚══════╝    ╚═╝  ╚═╝ ╚═════╝ ╚═════╝
-""")
+    print("\033[96m" + r"""
+   ________  ______________ 
+  / ____/ / / /  _/ ____/ / 
+ / /   / /_/ // // __/ / /  
+/ /___/ __  // // /___/ /___
+\____/_/ /_/___/_____/_____/
+""" + "\033[0m")
     print(f"                 {VERSION} (Tempest Edition)\n")
 
 def info(msg):
@@ -78,7 +77,8 @@ def scan_packages():
 # CONFIG
 # ==========================================
 
-CONFIG_FILE = Path.home() / ".cielhub_config.json"
+CONFIG_FILE = Path.home() / ".chielhub_config.json"
+OLD_CONFIG_FILE = Path.home() / ".cielhub_config.json" # Untuk migrasi data lama
 
 DEFAULT_CONFIG = {
     "packages": [],
@@ -99,6 +99,14 @@ DEFAULT_CONFIG = {
 
 def load_config():
     config = DEFAULT_CONFIG.copy()
+    
+    # Auto-Migrasi: Menyelamatkan settingan & token bot lama lu ke file baru
+    if OLD_CONFIG_FILE.exists() and not CONFIG_FILE.exists():
+        try:
+            OLD_CONFIG_FILE.rename(CONFIG_FILE)
+        except Exception:
+            pass
+
     if CONFIG_FILE.exists():
         try:
             with open(CONFIG_FILE, "r") as f:
@@ -220,18 +228,6 @@ def settings_menu(config):
     print()
     success("Konfigurasi berhasil disimpan.")
     return config
-
-
-def save_config(config):
-    with open(CONFIG_FILE, "w") as f:
-        json.dump(config, f, indent=4)
-
-# ==========================================
-# SETTINGS
-# ==========================================
-
-
-
 
 # ==========================================
 # JOIN METHOD
@@ -439,15 +435,12 @@ def detect_single_username(pkg, config, index):
         username = None
         
         try:
-            # Jeda 5 detik biar mod APK selesai loading & nulis data ke file
             time.sleep(5)
             
-            # Pake find & cat via shell=True biar root yg eksekusi pencarian filenya
             cmd = f"su -c 'find /data/data/{pkg} -type f -name \"*.xml\" -o -name \"*.json\" -exec cat {{}} + 2>/dev/null'"
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             output = result.stdout
             
-            # Scan 1: Format XML standar
             matches = re.findall(r'(?i)<string name="[^"]*username[^"]*">([^<]+)</string>', output)
             for match in matches:
                 clean_match = match.strip()
@@ -455,7 +448,6 @@ def detect_single_username(pkg, config, index):
                     username = clean_match
                     break
             
-            # Scan 2: Kalo mod pake format JSON
             if not username:
                 matches_json = re.findall(r'(?i)"[^"]*username[^"]*"\s*:\s*"([^"]+)"', output)
                 for match in matches_json:
@@ -596,4 +588,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-                           
