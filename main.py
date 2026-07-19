@@ -82,12 +82,13 @@ CONFIG_FILE = Path.home() / ".cielhub_config.json"
 
 DEFAULT_CONFIG = {
     "packages": [],
-    "reconnect_minutes": 5,
+    "reconnect_minutes": 5, 
     "force_close_delay": 30,
     "staggered_delay_min": 25,
     "staggered_delay_max": 40,
     "auto_clear_cache_minutes": 60, 
-    "discord_webhook": "", 
+    "discord_bot_token": "",     # <--- INI YANG BARU
+    "discord_channel_id": "",    # <--- INI YANG BARU
     "device_name": "Device-1",
     "akun_labels": {},         
     "join_method": "private_server",
@@ -100,31 +101,7 @@ def load_config():
     config = DEFAULT_CONFIG.copy()
     if CONFIG_FILE.exists():
         try:
-            with open(CONFIG_FILE, "r") as f:
-                old = json.load(f)
             
-            if "staggered_delay" in old:
-                old["staggered_delay_min"] = old["staggered_delay"]
-                old["staggered_delay_max"] = old["staggered_delay"] + 10
-                del old["staggered_delay"]
-                
-            if "auto_clear_cache" in old:
-                old["auto_clear_cache_minutes"] = 60 if old["auto_clear_cache"] else 0
-                del old["auto_clear_cache"]
-
-            config.update(old)
-        except Exception:
-            pass
-    return config
-
-def save_config(config):
-    with open(CONFIG_FILE, "w") as f:
-        json.dump(config, f, indent=4)
-
-# ==========================================
-# SETTINGS
-# ==========================================
-
 def settings_menu(config):
     print()
     title("PENGATURAN")
@@ -133,9 +110,10 @@ def settings_menu(config):
     print(f"Force Close Delay       : {config.get('force_close_delay', 30)} detik")
     print(f"Staggered Delay (Acak)  : {config.get('staggered_delay_min', 25)} - {config.get('staggered_delay_max', 40)} detik")
     print(f"Auto Clear Cache        : {config.get('auto_clear_cache_minutes', 60)} menit")
-
-    webhook_status = "Tersimpan" if config.get("discord_webhook") else "Kosong"
-    print(f"Discord Webhook URL     : {webhook_status}")
+    
+    token_status = "Tersimpan" if config.get("discord_bot_token") else "Kosong"
+    print(f"Discord Bot Token       : {token_status}")
+    print(f"Discord Channel ID      : {config.get('discord_channel_id', 'Kosong')}")
     print()
 
     answer = input("Ubah pengaturan? (y/n): ").strip().lower()
@@ -144,14 +122,15 @@ def settings_menu(config):
         return config
 
     print()
-    title("NAMA DEVICE & WEBHOOK")
+    title("NAMA DEVICE & DISCORD BOT")
     ans_device = input(f"Masukkan Nama Device ini (Kosongi utk pakai '{config.get('device_name', 'Device-1')}'):\n> ").strip()
     if ans_device:
         config["device_name"] = ans_device
     elif not config.get("device_name"):
         config["device_name"] = "Device-1"
         
-    ans_webhook = input("Masukkan URL Webhook Discord (Kosongkan jika tidak pakai):\n> ").strip()
+    ans_token = input("Masukkan Bot Token Discord (Kosongi jika tidak ingin mengubah):\n> ").strip()
+    ans_channel = input("Masukkan Channel ID tempat bot akan nangkring (Kosongi jika tidak ingin mengubah):\n> ").strip()
 
     print()
     title("AUTO RECONNECT")
@@ -202,19 +181,47 @@ def settings_menu(config):
             pass
         warning("Masukkan angka valid (Misal: 60).")
     
-
     config["reconnect_minutes"] = reconnect
     config["force_close_delay"] = delay
     config["staggered_delay_min"] = stagger_min
     config["staggered_delay_max"] = stagger_max
     config["auto_clear_cache_minutes"] = cache_min
-    if ans_webhook:
-        config["discord_webhook"] = ans_webhook
+    
+    if ans_token:
+        config["discord_bot_token"] = ans_token
+    if ans_channel:
+        config["discord_channel_id"] = ans_channel
 
     save_config(config)
     print()
     success("Konfigurasi berhasil disimpan.")
     return config
+            with open(CONFIG_FILE, "r") as f:
+                old = json.load(f)
+            
+            if "staggered_delay" in old:
+                old["staggered_delay_min"] = old["staggered_delay"]
+                old["staggered_delay_max"] = old["staggered_delay"] + 10
+                del old["staggered_delay"]
+                
+            if "auto_clear_cache" in old:
+                old["auto_clear_cache_minutes"] = 60 if old["auto_clear_cache"] else 0
+                del old["auto_clear_cache"]
+
+            config.update(old)
+        except Exception:
+            pass
+    return config
+
+def save_config(config):
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config, f, indent=4)
+
+# ==========================================
+# SETTINGS
+# ==========================================
+
+
 
 
 # ==========================================
