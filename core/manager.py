@@ -88,7 +88,8 @@ if DISCORD_AVAILABLE:
                 
                 with self.manager.ui_lock:
                     subprocess.run(["su", "-c", f"screencap -p {path}"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    print('\033[2J\033[H', end='', flush=True)
+                    # Beri waktu CPU bernafas 0.5 detik setelah ngambil foto berat biar UI ga nabrak
+                    time.sleep(0.5)
                 
                 if os.path.exists(path):
                     file = discord.File(path, filename="chiel_snap.png")
