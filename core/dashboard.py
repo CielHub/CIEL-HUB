@@ -21,6 +21,12 @@ WHITE = "\033[97m"
 # ==========================================
 
 def clear():
+    # Flicker-free rendering: pindah kursor ke pojok kiri atas dan sembunyikan kursor
+    sys.stdout.write('\033[H\033[?25l')
+    sys.stdout.flush()
+
+def hard_clear():
+    # Bersihin layar beneran (opsional, misal dipake di awal program aja)
     sys.stdout.write('\033c\033[2J\033[3J\033[H')
     sys.stdout.flush()
 
@@ -137,3 +143,8 @@ def draw_dashboard(monitors, ram_used, ram_total):
         print(line_str)
 
     print(color("╚" + "═" * (WIDTH + 2) + "╝", BLUE))
+
+    # Bersihkan sisa ghosting ke bawah dan kembalikan kursor
+    sys.stdout.write('\033[J\033[?25h')
+    sys.stdout.flush()
+    
