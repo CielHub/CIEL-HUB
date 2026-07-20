@@ -31,7 +31,7 @@ def log_error(err_msg):
         pass
 
 # ==========================================
-# DISCORD UI (Dropdown, Tombol, & Screenshot)
+# DISCORD UI (Dropdown & Tombol)
 # ==========================================
 if DISCORD_AVAILABLE:
     class PanelView(discord.ui.View):
@@ -65,10 +65,6 @@ if DISCORD_AVAILABLE:
             btn_kill.callback = self.kill_callback
             self.add_item(btn_kill)
 
-            btn_snap = discord.ui.Button(label="Cek Layar", style=discord.ButtonStyle.secondary, emoji="📸", custom_id=f"btn_snap_{self.device_name}", row=1)
-            btn_snap.callback = self.snap_callback
-            self.add_item(btn_snap)
-
             btn_restart_all = discord.ui.Button(label="Restart Semua", style=discord.ButtonStyle.success, emoji="🌍", custom_id=f"btn_res_all_{self.device_name}", row=2)
             btn_restart_all.callback = self.restart_all_callback
             self.add_item(btn_restart_all)
@@ -81,39 +77,6 @@ if DISCORD_AVAILABLE:
             self.selected_account = int(self.select.values[0])
             m = self.manager.monitors[self.selected_account]
             await interaction.response.send_message(f"🎯 [{self.device_name}] Terkunci ke target: **{m.akun_label}**.", ephemeral=True)
-
-        async def snap_callback(self, interaction: discord.Interaction):
-            await interaction.response.defer(ephemeral=True)
-            try:
-                # Bikin nama file unik per device biar ga tabrakan
-                safe_device_name = self.device_name.replace(" ", "_")
-                path = f"/sdcard/chiel_snap_{safe_device_name}.png"
-                
-                with self.manager.ui_lock:
-                    # KASIH JEDA 0.5 DETIK
-                    # Biar engine grafis Android selesai render UI secara utuh sebelum difoto
-                    time.sleep(0.5) 
-                    
-                    subprocess.run(["su", "-c", f"screencap -p {path}"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                
-                if os.path.exists(path):
-                    file = discord.File(path, filename=f"snap_{safe_device_name}.png")
-                    caption = f"📸 **LIVE SCREENSHOT | {self.device_name}**"
-                    
-                    if self.manager.snap_msg:
-                        try:
-                            await self.manager.snap_msg.edit(content=caption, attachments=[file])
-                            await interaction.followup.send("✅ Foto layar berhasil di-update!", ephemeral=True)
-                        except discord.NotFound:
-                            self.manager.snap_msg = await interaction.channel.send(content=caption, file=file)
-                            await interaction.followup.send("✅ Panel screenshot baru dibuat!", ephemeral=True)
-                    else:
-                        self.manager.snap_msg = await interaction.channel.send(content=caption, file=file)
-                        await interaction.followup.send("✅ Panel screenshot pertama dibuat!", ephemeral=True)
-                else:
-                    await interaction.followup.send("❌ Gagal ambil screenshot (Root bermasalah?).", ephemeral=True)
-            except Exception as e:
-                await interaction.followup.send(f"❌ Error sistem: {str(e)}", ephemeral=True)
 
         async def restart_callback(self, interaction: discord.Interaction):
             if self.selected_account is None:
@@ -170,14 +133,13 @@ if DISCORD_AVAILABLE:
             channel = self.get_channel(self.channel_id)
             if channel:
                 target_title = f"🚀 CHIEL-HUB PANEL | {self.device_name}"
-                # Cari dan selamatkan panel punya device INI SAJA, biarkan device lain hidup
                 async for msg in channel.history(limit=50):
                     if msg.author == self.user and msg.embeds:
                         if msg.embeds[0].title == target_title:
                             if not self.panel_msg:
                                 self.panel_msg = msg
                             else:
-                                try: await msg.delete() # Hapus duplikat dari device yang sama
+                                try: await msg.delete()
                                 except: pass
             
             self.update_task.start()
@@ -259,7 +221,6 @@ class Manager:
         self.channel_id = self.config.get("discord_channel_id", "").strip()
         
         self.bot_thread = None
-        self.snap_msg = None 
 
         if self.bot_token and self.channel_id:
             if DISCORD_AVAILABLE:
@@ -339,4 +300,4 @@ class Manager:
 
     def get_monitors(self):
         return self.monitors
-                                                                          
+        
