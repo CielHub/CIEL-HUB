@@ -26,7 +26,7 @@ from core.recovery import force_stop
 def log_error(err_msg):
     try:
         with open("chielhub_error.log", "a") as f:
-            f.write(f" {err_msg}\n")
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {err_msg}\n")
     except:
         pass
 
@@ -41,7 +41,7 @@ if DISCORD_AVAILABLE:
             self.selected_account = None
             self.device_name = self.manager.config.get("device_name", "Device-1")
 
-            options =
+            options = []
             for i, m in enumerate(self.manager.monitors):
                 label = m.akun_label if m.akun_label else m.package.split('.')[-1]
                 options.append(discord.SelectOption(label=label[:90], value=str(i), emoji="🕹️"))
@@ -78,21 +78,20 @@ if DISCORD_AVAILABLE:
             self.add_item(btn_kill_all)
 
         async def select_callback(self, interaction: discord.Interaction):
-            self.selected_account = int(self.select.values)
+            self.selected_account = int(self.select.values[0])
             m = self.manager.monitors[self.selected_account]
             await interaction.response.send_message(f"🎯 [{self.device_name}] Terkunci ke target: **{m.akun_label}**.", ephemeral=True)
 
         async def snap_callback(self, interaction: discord.Interaction):
             await interaction.response.defer(ephemeral=True)
             try:
+                # Bikin nama file unik per device biar ga tabrakan
                 safe_device_name = self.device_name.replace(" ", "_")
                 path = f"/sdcard/chiel_snap_{safe_device_name}.png"
                 
                 with self.manager.ui_lock:
-                    # FIX: Sumbat input biar ga hijack TTY
-                    subprocess.run(["su", "-c", f"screencap -p {path}"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    # FIX: Obat kuat penormal terminal Termux
-                    os.system("stty sane")
+                    subprocess.run(["su", "-c", f"screencap -p {path}"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    # Trigger Hard Reset Layar dari Main Thread setelah jepret
                     self.manager.needs_redraw = True 
                 
                 if os.path.exists(path):
@@ -172,7 +171,7 @@ if DISCORD_AVAILABLE:
                 # Cari dan selamatkan panel punya device INI SAJA, biarkan device lain hidup
                 async for msg in channel.history(limit=50):
                     if msg.author == self.user and msg.embeds:
-                        if msg.embeds.title == target_title:
+                        if msg.embeds[0].title == target_title:
                             if not self.panel_msg:
                                 self.panel_msg = msg
                             else:
@@ -187,13 +186,13 @@ if DISCORD_AVAILABLE:
                 return
             
             try:
-                desc_lines =
+                desc_lines = []
                 for m in self.manager.monitors:
                     if getattr(m, 'manual_kill', False):
                         icon, plain_status, timer = "💀", "Disabled (Manual Kill)", "00:00:00"
                     else:
                         if m.status.startswith("[OK]"): icon = "🟢"
-                        elif m.status.startswith(""): icon = "🟡"
+                        elif m.status.startswith("[RC]"): icon = "🟡"
                         elif m.status.startswith("[LO]"): icon = "🔵"
                         else: icon = "🔴"
                         
@@ -253,7 +252,7 @@ class Manager:
         self.running = False
         
         self.ui_lock = threading.Lock()
-        self.needs_redraw = False 
+        self.needs_redraw = False # Trigger untuk Hard Reset terminal pasca screenshot
         
         self.bot_token = self.config.get("discord_bot_token", "").strip()
         self.channel_id = self.config.get("discord_channel_id", "").strip()
@@ -319,7 +318,14 @@ class Manager:
                 
                 # Eksekusi Hard Reset Terminal JIKA baru saja ambil screenshot
                 if self.needs_redraw:
-                    print('\033c\033,,, 1)
+                    sys.stdout.write('\033c')
+                    sys.stdout.flush()
+                    self.needs_redraw = False
+                
+                with self.ui_lock:
+                    self.update_dashboard()
+                
+                i, o, e = select.select([sys.stdin], [], [], 1)
                 if i:
                     user_input = sys.stdin.readline().strip().lower()
                     if user_input == 'r':
@@ -338,4 +344,4 @@ class Manager:
 
     def get_monitors(self):
         return self.monitors
-                    
+                
