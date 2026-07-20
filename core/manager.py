@@ -39,6 +39,7 @@ if DISCORD_AVAILABLE:
             super().__init__(timeout=None)
             self.manager = manager
             self.selected_account = None
+            self.device_name = self.manager.config.get("device_name", "Device-1")
 
             options = []
             for i, m in enumerate(self.manager.monitors):
@@ -46,59 +47,61 @@ if DISCORD_AVAILABLE:
                 options.append(discord.SelectOption(label=label[:90], value=str(i), emoji="🕹️"))
 
             self.select = discord.ui.Select(
-                placeholder="Pilih Akun yang mau dieksekusi...",
+                placeholder=f"Pilih Akun di {self.device_name}...",
                 min_values=1, 
                 max_values=1, 
                 options=options,
-                custom_id="select_account",
+                custom_id=f"select_{self.device_name}",
                 row=0
             )
             self.select.callback = self.select_callback
             self.add_item(self.select)
 
-            btn_restart = discord.ui.Button(label="Restart", style=discord.ButtonStyle.primary, emoji="🔄", custom_id="btn_restart", row=1)
+            btn_restart = discord.ui.Button(label="Restart", style=discord.ButtonStyle.primary, emoji="🔄", custom_id=f"btn_res_{self.device_name}", row=1)
             btn_restart.callback = self.restart_callback
             self.add_item(btn_restart)
 
-            btn_kill = discord.ui.Button(label="Kill", style=discord.ButtonStyle.danger, emoji="💀", custom_id="btn_kill", row=1)
+            btn_kill = discord.ui.Button(label="Kill", style=discord.ButtonStyle.danger, emoji="💀", custom_id=f"btn_kill_{self.device_name}", row=1)
             btn_kill.callback = self.kill_callback
             self.add_item(btn_kill)
 
-            btn_snap = discord.ui.Button(label="Cek Layar", style=discord.ButtonStyle.secondary, emoji="📸", custom_id="btn_snap", row=1)
+            btn_snap = discord.ui.Button(label="Cek Layar", style=discord.ButtonStyle.secondary, emoji="📸", custom_id=f"btn_snap_{self.device_name}", row=1)
             btn_snap.callback = self.snap_callback
             self.add_item(btn_snap)
 
-            btn_restart_all = discord.ui.Button(label="Restart Semua", style=discord.ButtonStyle.success, emoji="🌍", custom_id="btn_restart_all", row=2)
+            btn_restart_all = discord.ui.Button(label="Restart Semua", style=discord.ButtonStyle.success, emoji="🌍", custom_id=f"btn_res_all_{self.device_name}", row=2)
             btn_restart_all.callback = self.restart_all_callback
             self.add_item(btn_restart_all)
 
-            btn_kill_all = discord.ui.Button(label="Nuke Semua", style=discord.ButtonStyle.secondary, emoji="💣", custom_id="btn_kill_all", row=2)
+            btn_kill_all = discord.ui.Button(label="Nuke Semua", style=discord.ButtonStyle.secondary, emoji="💣", custom_id=f"btn_kill_all_{self.device_name}", row=2)
             btn_kill_all.callback = self.kill_all_callback
             self.add_item(btn_kill_all)
 
         async def select_callback(self, interaction: discord.Interaction):
             self.selected_account = int(self.select.values[0])
             m = self.manager.monitors[self.selected_account]
-            await interaction.response.send_message(f"🎯 Terkunci ke target: **{m.akun_label}**. Silakan klik tombol aksi di bawah.", ephemeral=True)
+            await interaction.response.send_message(f"🎯 [{self.device_name}] Terkunci ke target: **{m.akun_label}**.", ephemeral=True)
 
         async def snap_callback(self, interaction: discord.Interaction):
             await interaction.response.defer(ephemeral=True)
             try:
-                path = "/sdcard/chiel_snap.png"
+                # Bikin nama file unik per device biar ga tabrakan
+                safe_device_name = self.device_name.replace(" ", "_")
+                path = f"/sdcard/chiel_snap_{safe_device_name}.png"
                 
                 with self.manager.ui_lock:
                     subprocess.run(["su", "-c", f"screencap -p {path}"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    # Beri waktu CPU bernafas 0.5 detik setelah ngambil foto berat biar UI ga nabrak
-                    time.sleep(0.5)
+                    # Trigger Hard Reset Layar dari Main Thread setelah jepret
+                    self.manager.needs_redraw = True 
                 
                 if os.path.exists(path):
-                    file = discord.File(path, filename="chiel_snap.png")
-                    caption = "📸 **LIVE SCREENSHOT**\n*(Gambar ini akan otomatis ditimpa setiap lu klik Cek Layar)*"
+                    file = discord.File(path, filename=f"snap_{safe_device_name}.png")
+                    caption = f"📸 **LIVE SCREENSHOT | {self.device_name}**"
                     
                     if self.manager.snap_msg:
                         try:
                             await self.manager.snap_msg.edit(content=caption, attachments=[file])
-                            await interaction.followup.send("✅ Foto layar berhasil di-update di atas!", ephemeral=True)
+                            await interaction.followup.send("✅ Foto layar berhasil di-update!", ephemeral=True)
                         except discord.NotFound:
                             self.manager.snap_msg = await interaction.channel.send(content=caption, file=file)
                             await interaction.followup.send("✅ Panel screenshot baru dibuat!", ephemeral=True)
@@ -106,56 +109,45 @@ if DISCORD_AVAILABLE:
                         self.manager.snap_msg = await interaction.channel.send(content=caption, file=file)
                         await interaction.followup.send("✅ Panel screenshot pertama dibuat!", ephemeral=True)
                 else:
-                    await interaction.followup.send("❌ Gagal ambil screenshot. Pastikan Termux punya akses Root (Shizuku/Magisk).", ephemeral=True)
+                    await interaction.followup.send("❌ Gagal ambil screenshot (Root bermasalah?).", ephemeral=True)
             except Exception as e:
                 await interaction.followup.send(f"❌ Error sistem: {str(e)}", ephemeral=True)
 
         async def restart_callback(self, interaction: discord.Interaction):
             if self.selected_account is None:
-                await interaction.response.send_message("❌ Lu belum milih akun di dropdown atas!", ephemeral=True)
+                await interaction.response.send_message("❌ Lu belum milih akun di dropdown!", ephemeral=True)
                 return
-            
             m = self.manager.monitors[self.selected_account]
             m.manual_kill = False 
             m.start_recovery(3)
-            await interaction.response.send_message(f"🔄 **{m.akun_label}** sedang di-restart paksa. Watchdog akan mengambil alih.", ephemeral=True)
+            await interaction.response.send_message(f"🔄 **{m.akun_label}** di {self.device_name} sedang di-restart.", ephemeral=True)
 
         async def kill_callback(self, interaction: discord.Interaction):
             if self.selected_account is None:
-                await interaction.response.send_message("❌ Lu belum milih akun di dropdown atas!", ephemeral=True)
+                await interaction.response.send_message("❌ Lu belum milih akun di dropdown!", ephemeral=True)
                 return
-            
             m = self.manager.monitors[self.selected_account]
             m.manual_kill = True 
             m.cancel_recovery()
-            
-            try:
-                subprocess.run(["su", "-c", f"am force-stop {m.package}"], stdin=subprocess.DEVNULL)
+            try: subprocess.run(["su", "-c", f"am force-stop {m.package}"], stdin=subprocess.DEVNULL)
             except: pass
-            
-            await interaction.response.send_message(f"💀 **{m.akun_label}** telah dimatikan total. Sistem Auto-Recovery dihentikan untuk akun ini.", ephemeral=True)
+            await interaction.response.send_message(f"💀 **{m.akun_label}** di {self.device_name} dimatikan total.", ephemeral=True)
 
         async def restart_all_callback(self, interaction: discord.Interaction):
             await interaction.response.defer(ephemeral=True) 
-            count = 0
             for m in self.manager.monitors:
                 m.manual_kill = False
                 m.start_recovery(3)
-                count += 1
-            await interaction.followup.send(f"🌍 **{count} Akun** sedang di-restart masal! Watchdog akan membangkitkan mereka kembali.", ephemeral=True)
+            await interaction.followup.send(f"🌍 Semua Akun di **{self.device_name}** di-restart!", ephemeral=True)
 
         async def kill_all_callback(self, interaction: discord.Interaction):
             await interaction.response.defer(ephemeral=True)
-            count = 0
             for m in self.manager.monitors:
                 m.manual_kill = True
                 m.cancel_recovery()
-                try:
-                    subprocess.run(["su", "-c", f"am force-stop {m.package}"], stdin=subprocess.DEVNULL)
+                try: subprocess.run(["su", "-c", f"am force-stop {m.package}"], stdin=subprocess.DEVNULL)
                 except: pass
-                count += 1
-            await interaction.followup.send(f"💣 **NUKE DIJATUHKAN!** {count} Akun berhasil dimatikan paksa.", ephemeral=True)
-
+            await interaction.followup.send(f"💣 NUKE! Semua akun di **{self.device_name}** mati.", ephemeral=True)
 
 # ==========================================
 # DISCORD BOT CLIENT
@@ -168,18 +160,23 @@ if DISCORD_AVAILABLE:
             super().__init__(intents=intents)
             self.manager = manager
             self.channel_id = int(manager.config.get("discord_channel_id", 0))
+            self.device_name = self.manager.config.get("device_name", "Device-1")
             self.panel_msg = None
             self.last_content = ""
 
         async def setup_hook(self):
             channel = self.get_channel(self.channel_id)
             if channel:
-                async for msg in channel.history(limit=100):
-                    if msg.author == self.user:
-                        try: 
-                            await msg.delete()
-                        except: 
-                            pass
+                target_title = f"🚀 CHIEL-HUB PANEL | {self.device_name}"
+                # Cari dan selamatkan panel punya device INI SAJA, biarkan device lain hidup
+                async for msg in channel.history(limit=50):
+                    if msg.author == self.user and msg.embeds:
+                        if msg.embeds[0].title == target_title:
+                            if not self.panel_msg:
+                                self.panel_msg = msg
+                            else:
+                                try: await msg.delete() # Hapus duplikat dari device yang sama
+                                except: pass
             
             self.update_task.start()
 
@@ -192,17 +189,14 @@ if DISCORD_AVAILABLE:
                 desc_lines = []
                 for m in self.manager.monitors:
                     if getattr(m, 'manual_kill', False):
-                        icon = "💀"
-                        plain_status = "Disabled (Manual Kill)"
-                        timer = "00:00:00"
+                        icon, plain_status, timer = "💀", "Disabled (Manual Kill)", "00:00:00"
                     else:
                         if m.status.startswith("[OK]"): icon = "🟢"
                         elif m.status.startswith("[RC]"): icon = "🟡"
                         elif m.status.startswith("[LO]"): icon = "🔵"
                         else: icon = "🔴"
                         
-                        if m.recovering(): timer = f"{m.recovery_remaining:02}s"
-                        else: timer = m.uptime()
+                        timer = f"{m.recovery_remaining:02}s" if m.recovering() else m.uptime()
                         plain_status = m.status.split("] ")[-1]
                     
                     desc_lines.append(f"{icon} **{m.akun_label}** - {plain_status} (`{timer}`)")
@@ -213,18 +207,16 @@ if DISCORD_AVAILABLE:
                     return
                 
                 self.last_content = content
-                device_name = self.manager.config.get("device_name", "Device-1")
                 
                 embed = discord.Embed(
-                    title=f"🚀 CHIEL-HUB PANEL | {device_name}", 
+                    title=f"🚀 CHIEL-HUB PANEL | {self.device_name}", 
                     description=content, 
                     color=0x2b2d31
                 )
-                embed.set_footer(text="Live Auto Update • Remote Control Aktif")
+                embed.set_footer(text=f"Live Auto Update • {self.device_name}")
                 
                 channel = self.get_channel(self.channel_id)
-                if not channel:
-                    return
+                if not channel: return
 
                 view = PanelView(self.manager)
 
@@ -260,6 +252,7 @@ class Manager:
         self.running = False
         
         self.ui_lock = threading.Lock()
+        self.needs_redraw = False # Trigger untuk Hard Reset terminal pasca screenshot
         
         self.bot_token = self.config.get("discord_bot_token", "").strip()
         self.channel_id = self.config.get("discord_channel_id", "").strip()
@@ -281,7 +274,6 @@ class Manager:
             
             import logging
             logging.getLogger('discord').setLevel(logging.CRITICAL)
-            
             bot.run(self.bot_token, log_handler=None)
 
         self.bot_thread = threading.Thread(target=run_bot, daemon=True)
@@ -324,6 +316,12 @@ class Manager:
                 self.update_watchdog()
                 self.update_cache_cleaner()
                 
+                # Eksekusi Hard Reset Terminal JIKA baru saja ambil screenshot
+                if self.needs_redraw:
+                    sys.stdout.write('\033c')
+                    sys.stdout.flush()
+                    self.needs_redraw = False
+                
                 with self.ui_lock:
                     self.update_dashboard()
                 
@@ -341,10 +339,8 @@ class Manager:
     def stop(self):
         self.running = False
         for package in self.packages:
-            try:
-                force_stop(package)
-            except Exception as e:
-                log_error(f"Gagal force-stop aplikasi {package}: {e}")
+            try: force_stop(package)
+            except: pass
 
     def get_monitors(self):
         return self.monitors
