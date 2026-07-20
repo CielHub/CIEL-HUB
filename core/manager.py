@@ -90,9 +90,11 @@ if DISCORD_AVAILABLE:
                 path = f"/sdcard/chiel_snap_{safe_device_name}.png"
                 
                 with self.manager.ui_lock:
+                    # KASIH JEDA 0.5 DETIK
+                    # Biar engine grafis Android selesai render UI secara utuh sebelum difoto
+                    time.sleep(0.5) 
+                    
                     subprocess.run(["su", "-c", f"screencap -p {path}"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    # Trigger Hard Reset Layar dari Main Thread setelah jepret
-                    self.manager.needs_redraw = True 
                 
                 if os.path.exists(path):
                     file = discord.File(path, filename=f"snap_{safe_device_name}.png")
@@ -252,7 +254,6 @@ class Manager:
         self.running = False
         
         self.ui_lock = threading.Lock()
-        self.needs_redraw = False # Trigger untuk Hard Reset terminal pasca screenshot
         
         self.bot_token = self.config.get("discord_bot_token", "").strip()
         self.channel_id = self.config.get("discord_channel_id", "").strip()
@@ -316,12 +317,6 @@ class Manager:
                 self.update_watchdog()
                 self.update_cache_cleaner()
                 
-                # Eksekusi Hard Reset Terminal JIKA baru saja ambil screenshot
-                if self.needs_redraw:
-                    sys.stdout.write('\033c')
-                    sys.stdout.flush()
-                    self.needs_redraw = False
-                
                 with self.ui_lock:
                     self.update_dashboard()
                 
@@ -344,4 +339,4 @@ class Manager:
 
     def get_monitors(self):
         return self.monitors
-                
+                                                                          
