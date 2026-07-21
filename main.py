@@ -483,21 +483,30 @@ def join_private_server(package, config):
         warning(f"Private Server Link untuk {package} kosong/tidak ditemukan.")
         return
 
-    info("Menunggu sebentar sebelum Join...")
-    time.sleep(5)
-    info(f"Join Private Server untuk {package}...")
+    info(f"Menunggu game engine {package} siap...")
+    # Kita tambah waktu tunggu awal jadi 10 detik buat kompensasi loading HP
+    time.sleep(10) 
+    info(f"Injecting Private Server Link...")
 
-    result = subprocess.run(
-        ["am", "start", "-a", "android.intent.action.VIEW", "-d", link, package],
-        capture_output=True,
-        text=True,
-    )
+    # Gunakan su -c dan beri tanda kutip tunggal ('') pada link biar karakter '&' atau '?' gak bikin error Shell
+    cmd = f"su -c \"am start -a android.intent.action.VIEW -d '{link}' {package}\""
+    
+    # Tembakan Pertama (Jaga-jaga kalau loading game cepet)
+    subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    
+    # Tembakan Kedua (Double Tap): Eksekusi lagi selang 8 detik
+    # Kalau yg pertama meleset karena stuck di logo, yg kedua ini bakal nangkep pas di Main Menu
+    info("Memastikan link masuk (Double Tap)...")
+    time.sleep(8)
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
     if result.returncode == 0:
-        success("Berhasil mengirim perintah Join Private Server.")
+        success(f"Berhasil mengirim perintah Join Private Server ke {package}.")
         return True
+        
     error(result.stderr)
     return False
+    
   
 # ==========================================
 # MAIN
