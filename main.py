@@ -472,7 +472,7 @@ def detect_single_username(pkg, config, index):
 
 def join_private_server(package, config):
     method = config.get("join_method")
-    
+
     if method == "private_server":
         link = config.get("private_server_link", "").strip()
     elif method == "private_server_tiap_akun":
@@ -484,34 +484,20 @@ def join_private_server(package, config):
         warning(f"Private Server Link untuk {package} kosong/tidak ditemukan.")
         return
 
-    info(f"Menunggu game engine {package} siap...")
-    # Jeda 10 detik buat kompensasi kalau HP agak berat pas buka banyak akun
-    time.sleep(10)
-    info(f"Injecting Private Server Link...")
+    info("Menunggu sebentar sebelum Join...")
+    time.sleep(5)
+    info(f"Join Private Server untuk {package}...")
 
-    # Kita balik pake format Array punya lu (Tanpa SU) biar link URL ga rusak kena parse Shell
-    cmd_args = [
-        "am", "start", 
-        "-a", "android.intent.action.VIEW", 
-        "-d", link, 
-        package
-    ]
+    result = subprocess.run(
+        ["am", "start", "-a", "android.intent.action.VIEW", "-d", link, package],
+        capture_output=True,
+        text=True,
+    )
 
-    # Tembakan Pertama
-    result1 = subprocess.run(cmd_args, capture_output=True, text=True)
-    
-    # Tembakan Kedua (Double Tap) - Jeda 8 detik
-    # Buat nangkep game yang lolos dari tembakan pertama karena telat loading / nyangkut di Main Menu
-    info("Memastikan link masuk (Double Tap)...")
-    time.sleep(8)
-    result2 = subprocess.run(cmd_args, capture_output=True, text=True)
-
-    # Kalau salah satu tembakan berhasil (returncode 0), berarti sukses
-    if result1.returncode == 0 or result2.returncode == 0:
-        success(f"Berhasil mengirim perintah Join Private Server ke {package}.")
+    if result.returncode == 0:
+        success("Berhasil mengirim perintah Join Private Server.")
         return True
-        
-    error(result2.stderr)
+    error(result.stderr)
     return False
     
     
