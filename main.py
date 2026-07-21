@@ -469,6 +469,7 @@ def detect_single_username(pkg, config, index):
         save_config(config)
     return config
 
+
 def join_private_server(package, config):
     method = config.get("join_method")
     
@@ -484,30 +485,36 @@ def join_private_server(package, config):
         return
 
     info(f"Menunggu game engine {package} siap...")
-    # Kita tambah waktu tunggu awal jadi 10 detik buat kompensasi loading HP
-    time.sleep(10) 
+    # Jeda 10 detik buat kompensasi kalau HP agak berat pas buka banyak akun
+    time.sleep(10)
     info(f"Injecting Private Server Link...")
 
-    # Gunakan su -c dan beri tanda kutip tunggal ('') pada link biar karakter '&' atau '?' gak bikin error Shell
-    cmd = f"su -c \"am start -a android.intent.action.VIEW -d '{link}' {package}\""
+    # Kita balik pake format Array punya lu (Tanpa SU) biar link URL ga rusak kena parse Shell
+    cmd_args = [
+        "am", "start", 
+        "-a", "android.intent.action.VIEW", 
+        "-d", link, 
+        package
+    ]
+
+    # Tembakan Pertama
+    result1 = subprocess.run(cmd_args, capture_output=True, text=True)
     
-    # Tembakan Pertama (Jaga-jaga kalau loading game cepet)
-    subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    
-    # Tembakan Kedua (Double Tap): Eksekusi lagi selang 8 detik
-    # Kalau yg pertama meleset karena stuck di logo, yg kedua ini bakal nangkep pas di Main Menu
+    # Tembakan Kedua (Double Tap) - Jeda 8 detik
+    # Buat nangkep game yang lolos dari tembakan pertama karena telat loading / nyangkut di Main Menu
     info("Memastikan link masuk (Double Tap)...")
     time.sleep(8)
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    result2 = subprocess.run(cmd_args, capture_output=True, text=True)
 
-    if result.returncode == 0:
+    # Kalau salah satu tembakan berhasil (returncode 0), berarti sukses
+    if result1.returncode == 0 or result2.returncode == 0:
         success(f"Berhasil mengirim perintah Join Private Server ke {package}.")
         return True
         
-    error(result.stderr)
+    error(result2.stderr)
     return False
     
-  
+    
 # ==========================================
 # MAIN
 # ==========================================
