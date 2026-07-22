@@ -430,28 +430,37 @@ def join_private_server(package, config):
     link = get_link_for_pkg(package, config)
     if not link: return
 
-    if not SILENT_MODE: info(f"Menunggu {package} siap menerima link (30s)...")
+    # 1. Pemanasan (Diasumsikan watchdog udah nge-launch game sebelum manggil ini)
+    if not SILENT_MODE: info(f"[RECOVERY] Fase 1: Pemanasan {package} (30s)...")
     time.sleep(30) 
 
-    # ============================================================
-    # PERBAIKAN RECOVERY:
-    # Menghapus trik narik Termux ke depan (Stealth Warm Boot Lama)
-    # Tujuannya agar fokus layar tidak berubah dan clone lain 
-    # yang sedang farming tidak ketimpa/berubah menjadi bubbles.
-    # ============================================================
+    # 2. Reset Memori (Sama kayak logika cuci gudang di awal)
+    if not SILENT_MODE: info(f"[RECOVERY] Fase 2: Kill {package} untuk reset memori...")
+    subprocess.run(["su", "-c", f"am force-stop {package}"])
+    time.sleep(3)
 
-    if not SILENT_MODE: info(f"Menembak Link Server ke {package} secara sunyi...")
+    # 3. Startup Ulang
+    if not SILENT_MODE: info(f"[RECOVERY] Fase 3: Membuka ulang {package}...")
+    launch_package(package)
+
+    # 4. Tunggu Matang
+    if not SILENT_MODE: info(f"[RECOVERY] Menunggu {package} masuk Main Menu (35s)...")
+    time.sleep(35)
+
+    # 5. Injeksi Sunyi (Tanpa manggil Termux ke depan biar clone lain ga jadi bubbles)
+    if not SILENT_MODE: info(f"[RECOVERY] Fase 4: Menembak Link Server ke {package}...")
     
     # Injeksi langsung dengan bendera 0x14000000 
     cmd = f"su -c \"am start -f 0x14000000 -a android.intent.action.VIEW -d '{link}' {package}\""
     
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    # Double tap untuk memastikan link nempel tanpa ganggu yang lain
+    # Double tap untuk memastikan link nempel
     time.sleep(12)
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     return True
+    
 
 # ==========================================
 # MAIN
