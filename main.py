@@ -473,27 +473,36 @@ def join_private_server(package, config):
     if not link:
         return
 
-    if not SILENT_MODE: info(f"Menunggu game {package} melewati loading screen...")
+    if not SILENT_MODE: info(f"Menunggu {package} menyelesaikan Cold Boot (30s)...")
+    # Jeda 30 detik biarin Roblox dan Delta loading sampai beneran mateng di Main Menu
+    time.sleep(30) 
+
+    # ==========================================
+    # THE FAKE WARM BOOT TRICK
+    # ==========================================
+    if not SILENT_MODE: info("Memaksa game ke Background (Simulasi Warm Boot)...")
+    # Pencet tombol HOME secara virtual biar game ke-minimize
+    subprocess.run(["su", "-c", "input keyevent 3"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    # PERBAIKAN TIMING: Kita naikkan drastis dari 12 detik jadi 25 detik.
-    # Ngasih napas panjang buat CPU HP lu ngerender Main Menu sampai mateng.
-    time.sleep(25) 
+    # Jeda dikit biar OS kelar nge-minimize (ngasih napas ke CPU)
+    time.sleep(3)
 
-    if not SILENT_MODE: info(f"Injecting Link Server ke {package}...")
-
-    cmd = f"su -c \"am start -a android.intent.action.VIEW -d '{link}' {package}\""
-
-    # Tembakan Pertama (Untuk game yang loadingnya cepet)
+    if not SILENT_MODE: info(f"Menembak Link ke {package} dari background...")
+    
+    # Tambahin FLAG_ACTIVITY_NEW_TASK & CLEAR_TOP (-f 0x14000000)
+    # Ini maksa Android buat "membangunkan" game dari background dan nyuapin link-nya
+    cmd = f"su -c \"am start -f 0x14000000 -a android.intent.action.VIEW -d '{link}' {package}\""
+    
+    # Tembakan Pertama
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    # PERBAIKAN DOUBLE TAP: Jeda antar tembakan diperlebar jadi 15 detik.
-    # Kalau tembakan pertama gagal karena game masih nyangkut di logo,
-    # tembakan kedua di detik ke-40 ini dijamin bakal masuk!
-    time.sleep(15)
+    # Double Tap buat jaga-jaga
+    time.sleep(12)
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     return True
     
+
 
 # ==========================================
 # MAIN
