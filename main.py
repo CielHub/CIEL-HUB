@@ -344,7 +344,7 @@ def select_packages(packages):
         warning("Tidak ada package yang dipilih.")
 
 # ==========================================
-# LAUNCHER & AUTO-DETECT LOGIC
+# LAUNCHER LOGIC
 # ==========================================
 
 def clear_cache(package, silent=False):
@@ -364,6 +364,7 @@ def clear_cache(package, silent=False):
         else:
             warning(f"Gagal bersihin cache (Pastikan punya akses Root).")
 
+
 def launch_package(package):
     if not SILENT_MODE: info(f"Menjalankan {package}...")
     
@@ -381,23 +382,10 @@ def launch_package(package):
     if not activity:
         activity = f"{package}/com.roblox.client.ActivitySplash"
 
-    # PERBAIKAN: Gunakan bendera -f 0x18000000 untuk memaksa aplikasi dibuka 
-    # sebagai "New Task" & "Multiple Task" agar tidak mematikan clone sebelumnya.
+    # Pake bendera New Task biar window baru terbuka murni di atas layar
     cmd = f"su -c \"am start -f 0x18000000 -n {activity}\""
-    
     launch = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    if launch.returncode == 0:
-        if not SILENT_MODE: success(f"{package} berhasil dijalankan.")
-        return True
-        
-    if not SILENT_MODE: error(launch.stderr)
-    return False
     
-
-    if not activity:
-        activity = f"{package}/com.roblox.client.ActivitySplash"
-
-    launch = subprocess.run(["su", "-c", f"am start -n {activity}"], capture_output=True, text=True)
     if launch.returncode == 0:
         if not SILENT_MODE: success(f"{package} berhasil dijalankan.")
         return True
@@ -429,89 +417,33 @@ def wait_until_foreground(package, timeout=20):
     if not SILENT_MODE: warning("Timeout, lanjut eksekusi berikutnya...")
     return True
 
-def detect_single_username(pkg, config, index):
-    if "akun_labels" not in config:
-        config["akun_labels"] = {}
-        
-    short_pkg = pkg.replace("com.roblox.", "")
-    
-    if pkg not in config["akun_labels"] or config["akun_labels"][pkg] == "" or config["akun_labels"][pkg] == short_pkg:
-        if not SILENT_MODE: info(f"Mencoba deteksi otomatis Username dari {short_pkg}...")
-        username = None
-        
-        try:
-            time.sleep(5)
-            
-            cmd = f"su -c 'find /data/data/{pkg} -type f -name \"*.xml\" -o -name \"*.json\" -exec cat {{}} + 2>/dev/null'"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            output = result.stdout
-            
-            matches = re.findall(r'(?i)<string name="[^"]*username[^"]*">([^<]+)</string>', output)
-            for match in matches:
-                clean_match = match.strip()
-                if clean_match and len(clean_match) > 2 and "roblox" not in clean_match.lower():
-                    username = clean_match
-                    break
-            
-            if not username:
-                matches_json = re.findall(r'(?i)"[^"]*username[^"]*"\s*:\s*"([^"]+)"', output)
-                for match in matches_json:
-                    clean_match = match.strip()
-                    if clean_match and len(clean_match) > 2:
-                        username = clean_match
-                        break
-        except Exception:
-            pass
-            
-        if username:
-            if not SILENT_MODE: success(f"Akun {index} : Berhasil mendeteksi otomatis [{username}]")
-            config["akun_labels"][pkg] = username
-        else:
-            if not SILENT_MODE: 
-                warning(f"Gagal mendeteksi otomatis Username.")
-                info(f"Menggunakan nama default [{short_pkg}] agar proses otomatisasi tidak terhenti.")
-            config["akun_labels"][pkg] = short_pkg
-            
-        save_config(config)
-    return config
-
-
-def join_private_server(package, config):
+def get_link_for_pkg(pkg, config):
     method = config.get("join_method")
-    
     if method == "private_server":
-        link = config.get("private_server_link", "").strip()
+        return config.get("private_server_link", "").strip()
     elif method == "private_server_tiap_akun":
-        link = config.get("ps_tiap_akun", {}).get(package, "").strip()
-    else:
-        return
+        return config.get("ps_tiap_akun", {}).get(pkg, "").strip()
+    return ""
 
-    if not link:
-        return
+# Fungsi ini cuma dipakai buat RECOVERY pas script udah jalan (oleh watchdog)
+def join_private_server(package, config):
+    link = get_link_for_pkg(package, config)
+    if not link: return
 
-    if not SILENT_MODE: info(f"Menunggu {package} siap menerima link (40s)...")
-    # Kasih waktu lebih panjang biar Main Menu bener-bener mateng dan siap
-    time.sleep(40) 
+    if not SILENT_MODE: info(f"Menunggu {package} siap menerima link (30s)...")
+    time.sleep(30) 
 
-    # ==========================================
-    # STEALTH WARM BOOT DIHAPUS SESUAI INSTRUKSI
-    # (Karena bikin floating No Mercy hilang)
-    # ==========================================
+    if not SILENT_MODE: info("Menggeser game ke background (Stealth Warm Boot)...")
+    subprocess.run(["su", "-c", "am start -n com.termux/com.termux.app.TermuxActivity"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(3)
 
     if not SILENT_MODE: info(f"Menembak Link Server ke {package}...")
-    
-    # Pakai FLAG_ACTIVITY_NEW_TASK (-f 0x10000000)
-    # Ini maksa link masuk ke aplikasi tanpa perlu minimize/kehilangan fokus
-    cmd = f"su -c \"am start -f 0x10000000 -a android.intent.action.VIEW -d '{link}' {package}\""
+    cmd = f"su -c \"am start -f 0x14000000 -a android.intent.action.VIEW -d '{link}' {package}\""
     
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    
-    # Double Tap buat jaga-jaga kalau game ngelag
-    time.sleep(15)
+    time.sleep(12)
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
     return True
-
 
 # ==========================================
 # MAIN
@@ -552,46 +484,77 @@ def main():
 
     try:
         total_clones = len(selected)
+        
+        # ============================================================
+        # FASE 1: BUKA SEMUA GAME DULU (COLD BOOT MASSAL)
+        # ============================================================
+        title("FASE 1: MEMBUKA SEMUA AKUN KE MAIN MENU")
         for i, package in enumerate(selected):
+            smart_launch(package)
             
-            # 1. Buka gamenya dulu
-            if smart_launch(package):
+            if i < total_clones - 1:
+                min_delay = config.get("staggered_delay_min", 25)
+                max_delay = config.get("staggered_delay_max", 40)
+                delay = random.randint(min_delay, max_delay)
                 
-                # 2. Deteksi pas udah masuk game
-                config = detect_single_username(package, config, i + 1)
-                
-                # 3. Lanjut Join Private Server
-                join_private_server(package, config)
-                
-                # 4. Tunggu Delay Acak sebelum akun berikutnya
-                if i < total_clones - 1:
-                    min_delay = config.get("staggered_delay_min", 25)
-                    max_delay = config.get("staggered_delay_max", 40)
-                    delay = random.randint(min_delay, max_delay)
+                if not SILENT_MODE:
+                    print()
+                    info(f"Menunggu {delay} detik (Acak) sebelum buka akun berikutnya...")
+                    for remain in range(delay, 0, -1):
+                        print(f"\r\033[94m[*] Lanjut ke clone berikutnya dalam {remain} detik...\033[0m  ", end="", flush=True)
+                        time.sleep(1)
+                    print("\r" + " " * 60 + "\r", end="", flush=True)
+                    print()
                     
-                    if not SILENT_MODE:
-                        print()
-                        info(f"Menunggu {delay} detik (Acak) agar {package} masuk ke in-game...")
-                        for remain in range(delay, 0, -1):
-                            print(f"\r\033[94m[*] Lanjut ke clone berikutnya dalam {remain} detik...\033[0m  ", end="", flush=True)
-                            time.sleep(1)
-                        print("\r" + " " * 60 + "\r", end="", flush=True)
-                        print()
+        # ============================================================
+        # FASE 2: PEMATANGAN BATCH & HIDE (TANPA HOME)
+        # ============================================================
+        if not SILENT_MODE:
+            print()
+            info("Semua game terbuka. Menunggu 35 detik agar Main Menu matang sempurna...")
+        time.sleep(35)
 
-        success("Semua clone berhasil dijalankan.")
+        if not SILENT_MODE: info("Memanggil Termux ke depan (Menyembunyikan paksa game tanpa Home)...")
+        # Narik Termux ke depan, otomatis nge-minimize game yang lagi floating
+        subprocess.run(["su", "-c", "am start -n com.termux/com.termux.app.TermuxActivity"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(4)
+
+        # ============================================================
+        # FASE 3: INJEKSI MASSAL SERENTAK (WARM BOOT)
+        # ============================================================
+        title("FASE 2: INJEKSI LINK SERENTAK")
+        
+        # Tembakan Pertama
+        for package in selected:
+            link = get_link_for_pkg(package, config)
+            if link:
+                if not SILENT_MODE: info(f"Membangunkan dan menyuntik Link ke {package}...")
+                cmd = f"su -c \"am start -f 0x14000000 -a android.intent.action.VIEW -d '{link}' {package}\""
+                subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        # Double Tap (Buat jaga-jaga)
+        if not SILENT_MODE: info("Menunggu 12 detik untuk Double Tap Massal...")
+        time.sleep(12)
+        for package in selected:
+            link = get_link_for_pkg(package, config)
+            if link:
+                cmd = f"su -c \"am start -f 0x14000000 -a android.intent.action.VIEW -d '{link}' {package}\""
+                subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        success("Seluruh fase Injeksi Massal berhasil dieksekusi!")
+        time.sleep(4)
 
         # ==========================================
         # TRANSISI KE DASHBOARD
         # ==========================================
         
-        # 1. Aktifkan mode bisu biar log recovery ga ngerusak layar dashboard nanti
         SILENT_MODE = True 
 
-        # 2. HARD CLEAR: Sapu bersih layar dan history scroll Termux 
+        # HARD CLEAR
         sys.stdout.write('\033c\033[2J\033[3J\033[H')
         sys.stdout.flush()
 
-        # 3. Mulai jalankan Engine Manager
+        # Mulai jalankan Engine Manager
         manager = Manager(
             selected,
             config,
