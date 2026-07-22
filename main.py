@@ -86,8 +86,6 @@ DEFAULT_CONFIG = {
     "packages": [],
     "reconnect_minutes": 5, 
     "force_close_delay": 30,
-    "staggered_delay_min": 25,
-    "staggered_delay_max": 40,
     "auto_clear_cache_minutes": 60, 
     "discord_bot_token": "",     
     "discord_channel_id": "",    
@@ -113,10 +111,13 @@ def load_config():
             with open(CONFIG_FILE, "r") as f:
                 old = json.load(f)
             
+            # Bersihin config lama biar ga nyampah
             if "staggered_delay" in old:
-                old["staggered_delay_min"] = old["staggered_delay"]
-                old["staggered_delay_max"] = old["staggered_delay"] + 10
                 del old["staggered_delay"]
+            if "staggered_delay_min" in old:
+                del old["staggered_delay_min"]
+            if "staggered_delay_max" in old:
+                del old["staggered_delay_max"]
                 
             if "auto_clear_cache" in old:
                 old["auto_clear_cache_minutes"] = 60 if old["auto_clear_cache"] else 0
@@ -141,7 +142,6 @@ def settings_menu(config):
     print(f"Device Name             : {config.get('device_name', 'Device-1')}")
     print(f"Reconnect saat ini      : {config.get('reconnect_minutes', 5)} menit")
     print(f"Force Close Delay       : {config.get('force_close_delay', 30)} detik")
-    print(f"Staggered Delay (Acak)  : {config.get('staggered_delay_min', 25)} - {config.get('staggered_delay_max', 40)} detik")
     print(f"Auto Clear Cache        : {config.get('auto_clear_cache_minutes', 60)} menit")
     
     token_status = "Tersimpan" if config.get("discord_bot_token") else "Kosong"
@@ -188,21 +188,6 @@ def settings_menu(config):
         warning("Masukkan angka yang valid.")
         
     print()
-    title("STAGGERED LAUNCH DELAY (ANTI-BOT)")
-    info("Sistem akan memilih waktu tunggu secara acak di antara dua nilai ini.")
-    while True:
-        try:
-            stagger_min = int(input("Jeda MINIMAL antar clone (detik): "))
-            stagger_max = int(input("Jeda MAKSIMAL antar clone (detik): "))
-            if stagger_min >= 0 and stagger_max >= stagger_min:
-                break
-            else:
-                warning("Input tidak valid. Pastikan Maksimal lebih besar atau sama dengan Minimal.")
-        except ValueError:
-            pass
-        warning("Masukkan angka yang valid.")
-        
-    print()
     title("AUTO CLEAR CACHE (ROOT REQUIRED)")
     info("Bersihkan cache otomatis tiap durasi tertentu (saat game jalan) biar ngga lag.")
     while True:
@@ -216,8 +201,6 @@ def settings_menu(config):
     
     config["reconnect_minutes"] = reconnect
     config["force_close_delay"] = delay
-    config["staggered_delay_min"] = stagger_min
-    config["staggered_delay_max"] = stagger_max
     config["auto_clear_cache_minutes"] = cache_min
     
     if ans_token:
@@ -425,24 +408,25 @@ def get_link_for_pkg(pkg, config):
     return ""
 
 # ============================================================
-# FUNGSI RECOVERY KHUSUS WAKE & SHOOT (Dipanggil Watchdog nanti)
+# FUNGSI RECOVERY (WAKE & SHOOT) KHUSUS 1 AKUN (WATCHDOG)
 # ============================================================
 def join_private_server(package, config):
     link = get_link_for_pkg(package, config)
     if not link: return
 
-    if not SILENT_MODE: info(f"Menunggu {package} siap masuk Main Menu (40s)...")
-    time.sleep(40) 
+    if not SILENT_MODE: info(f"Menunggu {package} siap masuk Main Menu (30s)...")
+    time.sleep(30) 
 
     if not SILENT_MODE: info(f"Membangunkan {package} dari tidur/bubble...")
     subprocess.run(f"su -c \"monkey -p {package} -c android.intent.category.LAUNCHER 1\"", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(5)
+    time.sleep(2)
 
     if not SILENT_MODE: info(f"Menembak Link Server ke {package}...")
     cmd = f"su -c \"am start -a android.intent.action.VIEW -d '{link}' {package}\""
     
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(15)
+    time.sleep(4)
+    # Double tap khusus Recovery tetep ada (karena cuma ngurusin 1 akun, aman)
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     return True
@@ -488,60 +472,49 @@ def main():
         total_clones = len(selected)
         
         # ============================================================
-        # FASE 1: BUKA SEMUA GAME DULU
+        # FASE 1: BUKA SEMUA GAME DULU (RAPID FIRE)
         # ============================================================
-        title("FASE 1: MEMBUKA SEMUA AKUN KE MAIN MENU")
+        title("FASE 1: MEMBUKA SEMUA AKUN (RAPID FIRE)")
         for i, package in enumerate(selected):
-            smart_launch(package)
+            # Langsung force open tanpa nunggu fungsi foreground biar ngebut
+            launch_package(package)
             
             if i < total_clones - 1:
-                min_delay = config.get("staggered_delay_min", 25)
-                max_delay = config.get("staggered_delay_max", 40)
-                delay = random.randint(min_delay, max_delay)
-                
-                if not SILENT_MODE:
-                    print()
-                    info(f"Menunggu {delay} detik (Acak) sebelum buka akun berikutnya...")
-                    for remain in range(delay, 0, -1):
-                        print(f"\r\033[94m[*] Lanjut ke clone berikutnya dalam {remain} detik...\033[0m  ", end="", flush=True)
-                        time.sleep(1)
-                    print("\r" + " " * 60 + "\r", end="", flush=True)
-                    print()
+                # Jeda tipis 2 detik sesuai request!
+                if not SILENT_MODE: info(f"Jeda kilat 2 detik...")
+                time.sleep(2)
                     
         # ============================================================
-        # FASE 2: WAKE & SHOOT (EKSEKUSI INDIVIDUAL MASSAL)
+        # FASE 2: PEMATANGAN BATCH
         # ============================================================
         if not SILENT_MODE:
             print()
-            info("Semua game terbuka. Menunggu 35 detik agar Main Menu matang sempurna...")
+            info("Semua game terbuka. Menunggu 35 detik agar Main Menu matang barengan...")
+        # Walau bukanya cepet, tetep butuh nunggu mereka loading dari layar hitam
         time.sleep(35)
 
-        title("FASE 2: INJEKSI LINK (WAKE & SHOOT)")
+        # ============================================================
+        # FASE 3: INJEKSI MASSAL SERENTAK (FAST WAKE & SHOOT)
+        # ============================================================
+        title("FASE 2: INJEKSI LINK (FAST WAKE & SHOOT)")
         
         for package in selected:
             link = get_link_for_pkg(package, config)
             if link:
-                if not SILENT_MODE: info(f"Membangunkan {package} dari mode bubble...")
-                # Perintah Monkey bakal mencet aplikasinya secara virtual, mekarin bubble-nya
+                if not SILENT_MODE: info(f"Wake & Shoot: {package}")
+                
+                # Buka balon
                 subprocess.run(f"su -c \"monkey -p {package} -c android.intent.category.LAUNCHER 1\"", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                time.sleep(2) # Tunggu mekar 2 detik doang
                 
-                # Kasih napas 5 detik biar animasi mekarnya kelar dan layar nerima input
-                time.sleep(5)
-                
-                if not SILENT_MODE: info(f"Menyuntik Link ke {package}...")
+                # Tembak Jantung
                 cmd = f"su -c \"am start -a android.intent.action.VIEW -d '{link}' {package}\""
                 subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 
-                # Double tap
-                time.sleep(12)
-                subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                
-                # Jeda sebelum pindah ngebangunin akun sebelah
-                if not SILENT_MODE: info("Menunggu 5 detik sebelum lanjut ke akun sebelah...")
-                time.sleep(5)
+                time.sleep(3) # Kasih napas 3 detik buat nangkep link sebelum pindah ke clone sebelah
 
         success("Seluruh fase Injeksi Massal berhasil dieksekusi!")
-        time.sleep(4)
+        time.sleep(2)
 
         # ==========================================
         # TRANSISI KE DASHBOARD
