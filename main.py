@@ -4,6 +4,7 @@ import time
 import json
 import random
 import re
+import sys
 from pathlib import Path
 
 from core.manager import Manager
@@ -18,7 +19,7 @@ ROBLOX_KEYWORDS = (
 # ==========================================
 # UI
 # ==========================================
-SILENT_MODE = False # Tambahin ini
+SILENT_MODE = False
 
 def clear():
     os.system("clear")
@@ -34,7 +35,6 @@ def banner():
 """ + "\033[0m")
     print(f"                 {VERSION} (Tempest Edition)\n")
 
-# Bikin fungsinya ngecek SILENT_MODE biar ga bacot pas dashboard nyala
 def info(msg):
     if not SILENT_MODE: print(f"[*] {msg}")
 
@@ -80,7 +80,7 @@ def scan_packages():
 # ==========================================
 
 CONFIG_FILE = Path.home() / ".chielhub_config.json"
-OLD_CONFIG_FILE = Path.home() / ".cielhub_config.json" # Untuk migrasi data lama
+OLD_CONFIG_FILE = Path.home() / ".cielhub_config.json" 
 
 DEFAULT_CONFIG = {
     "packages": [],
@@ -102,7 +102,6 @@ DEFAULT_CONFIG = {
 def load_config():
     config = DEFAULT_CONFIG.copy()
     
-    # Auto-Migrasi: Menyelamatkan settingan & token bot lama lu ke file baru
     if OLD_CONFIG_FILE.exists() and not CONFIG_FILE.exists():
         try:
             OLD_CONFIG_FILE.rename(CONFIG_FILE)
@@ -391,6 +390,7 @@ def launch_package(package):
     if not SILENT_MODE: error(launch.stderr)
     return False
 
+
 def is_running(package):
     result = subprocess.run(["pidof", package], capture_output=True, text=True)
     return bool(result.stdout.strip())
@@ -406,24 +406,23 @@ def is_foreground(package):
     return package in result.stdout and "mCurrentFocus" in result.stdout
 
 def wait_until_foreground(package, timeout=20):
-    info("Menunggu Roblox siap...")
+    if not SILENT_MODE: info("Menunggu Roblox siap...")
     for _ in range(timeout):
         if is_foreground(package):
-            success("Roblox siap.")
+            if not SILENT_MODE: success("Roblox siap.")
             return True
         time.sleep(1)
-    warning("Timeout, lanjut eksekusi berikutnya...")
+    if not SILENT_MODE: warning("Timeout, lanjut eksekusi berikutnya...")
     return True
 
 def detect_single_username(pkg, config, index):
-    """Mencari Username dengan cara nge-grep seluruh file konfigurasi pake Root Shell"""
     if "akun_labels" not in config:
         config["akun_labels"] = {}
         
     short_pkg = pkg.replace("com.roblox.", "")
     
     if pkg not in config["akun_labels"] or config["akun_labels"][pkg] == "" or config["akun_labels"][pkg] == short_pkg:
-        info(f"Mencoba deteksi otomatis Username dari {short_pkg}...")
+        if not SILENT_MODE: info(f"Mencoba deteksi otomatis Username dari {short_pkg}...")
         username = None
         
         try:
@@ -451,16 +450,16 @@ def detect_single_username(pkg, config, index):
             pass
             
         if username:
-            success(f"Akun {index} : Berhasil mendeteksi otomatis [{username}]")
+            if not SILENT_MODE: success(f"Akun {index} : Berhasil mendeteksi otomatis [{username}]")
             config["akun_labels"][pkg] = username
         else:
-            warning(f"Gagal mendeteksi otomatis Username.")
-            info(f"Menggunakan nama default [{short_pkg}] agar proses otomatisasi tidak terhenti.")
+            if not SILENT_MODE: 
+                warning(f"Gagal mendeteksi otomatis Username.")
+                info(f"Menggunakan nama default [{short_pkg}] agar proses otomatisasi tidak terhenti.")
             config["akun_labels"][pkg] = short_pkg
             
         save_config(config)
     return config
-
 
 def join_private_server(package, config):
     method = config.get("join_method")
@@ -481,7 +480,6 @@ def join_private_server(package, config):
     # ==========================================
     # HACK: EXPLICIT COMPONENT INTENT
     # ==========================================
-    # Cari Activity utama secara dinamis dari package
     activity = None
     res_act = subprocess.run(["cmd", "package", "resolve-activity", "--brief", package], capture_output=True, text=True)
     for line in res_act.stdout.splitlines():
@@ -489,25 +487,22 @@ def join_private_server(package, config):
             activity = line.strip()
             break
             
-    # Kalau gagal nyari, pake path standar Roblox
     if not activity:
         activity = f"{package}/com.roblox.client.ActivitySplash"
 
     if not SILENT_MODE: info(f"Force-Injecting Link ke Jantung {package}...")
 
-    # Tembak langsung (EXPLICIT) ke Activity-nya pake flag -n
-    # Ini ngebypass semua sistem blokir OS dan kelemahan MT Manager
     cmd = f"su -c \"am start -n {activity} -a android.intent.action.VIEW -d '{link}'\""
 
-    subprocess.run(cmd, shell=True, capture_output=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # PERBAIKAN: Tanpa capture_output=True biar script tidak crash saat dipasangkan dengan DEVNULL
+    subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     # Double Tap
     time.sleep(8)
-    subprocess.run(cmd, shell=True, capture_output=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     return True
-    
-    
+
 # ==========================================
 # MAIN
 # ==========================================
@@ -550,7 +545,7 @@ def main():
             # 1. Buka gamenya dulu
             if smart_launch(package):
                 
-                # 2. Deteksi pas udah masuk game (Flow baru, mode agresif via Root)
+                # 2. Deteksi pas udah masuk game
                 config = detect_single_username(package, config, i + 1)
                 
                 # 3. Lanjut Join Private Server
@@ -562,18 +557,19 @@ def main():
                     max_delay = config.get("staggered_delay_max", 40)
                     delay = random.randint(min_delay, max_delay)
                     
-                    print()
-                    info(f"Menunggu {delay} detik (Acak) agar {package} masuk ke in-game...")
-                    for remain in range(delay, 0, -1):
-                        print(f"\r\033[94m[*] Lanjut ke clone berikutnya dalam {remain} detik...\033[0m  ", end="", flush=True)
-                        time.sleep(1)
-                    print("\r" + " " * 60 + "\r", end="", flush=True)
-                    print()
+                    if not SILENT_MODE:
+                        print()
+                        info(f"Menunggu {delay} detik (Acak) agar {package} masuk ke in-game...")
+                        for remain in range(delay, 0, -1):
+                            print(f"\r\033[94m[*] Lanjut ke clone berikutnya dalam {remain} detik...\033[0m  ", end="", flush=True)
+                            time.sleep(1)
+                        print("\r" + " " * 60 + "\r", end="", flush=True)
+                        print()
 
         success("Semua clone berhasil dijalankan.")
 
         # ==========================================
-        # TRANSISI KE DASHBOARD (ANTI-OVERLAP)
+        # TRANSISI KE DASHBOARD
         # ==========================================
         
         # 1. Aktifkan mode bisu biar log recovery ga ngerusak layar dashboard nanti
@@ -581,8 +577,6 @@ def main():
         SILENT_MODE = True
 
         # 2. HARD CLEAR: Sapu bersih layar dan history scroll Termux 
-        # biar dashboard punya "kanvas putih" yang bersih
-        import sys
         sys.stdout.write('\033c\033[2J\033[3J\033[H')
         sys.stdout.flush()
 
