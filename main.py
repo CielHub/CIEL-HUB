@@ -382,7 +382,6 @@ def launch_package(package):
     if not activity:
         activity = f"{package}/com.roblox.client.ActivitySplash"
 
-    # Pake bendera New Task biar window baru terbuka murni di atas layar
     cmd = f"su -c \"am start -f 0x18000000 -n {activity}\""
     launch = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     
@@ -425,30 +424,29 @@ def get_link_for_pkg(pkg, config):
         return config.get("ps_tiap_akun", {}).get(pkg, "").strip()
     return ""
 
-# Fungsi ini SEKARANG murni dipakai buat RECOVERY pas script udah jalan di Dashboard
+# ============================================================
+# FUNGSI RECOVERY KHUSUS WAKE & SHOOT (Dipanggil Watchdog nanti)
+# ============================================================
 def join_private_server(package, config):
     link = get_link_for_pkg(package, config)
     if not link: return
 
-    # Nunggu 40 detik biarin clone yang abis mati ini masuk ke Main Menu
-    if not SILENT_MODE: info(f"Menunggu {package} siap menerima link (40s)...")
+    if not SILENT_MODE: info(f"Menunggu {package} siap masuk Main Menu (40s)...")
     time.sleep(40) 
 
-    # NGGAK ADA LAGI PERINTAH MANGGIL TERMUX DI SINI
-    # Biar clone lain yang lagi farming ngga ikutan ke-minimize/hilang.
+    if not SILENT_MODE: info(f"Membangunkan {package} dari tidur/bubble...")
+    subprocess.run(f"su -c \"monkey -p {package} -c android.intent.category.LAUNCHER 1\"", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(5)
 
-    # Langsung tembak paksa link-nya ke target
     if not SILENT_MODE: info(f"Menembak Link Server ke {package}...")
-    cmd = f"su -c \"am start -f 0x14000000 -a android.intent.action.VIEW -d '{link}' {package}\""
+    cmd = f"su -c \"am start -a android.intent.action.VIEW -d '{link}' {package}\""
     
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    
-    # Double Tap
     time.sleep(15)
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     return True
-    
+
 # ==========================================
 # MAIN
 # ==========================================
@@ -490,7 +488,7 @@ def main():
         total_clones = len(selected)
         
         # ============================================================
-        # FASE 1: BUKA SEMUA GAME DULU (COLD BOOT MASSAL)
+        # FASE 1: BUKA SEMUA GAME DULU
         # ============================================================
         title("FASE 1: MEMBUKA SEMUA AKUN KE MAIN MENU")
         for i, package in enumerate(selected):
@@ -511,39 +509,36 @@ def main():
                     print()
                     
         # ============================================================
-        # FASE 2: PEMATANGAN BATCH & HIDE (TANPA HOME)
+        # FASE 2: WAKE & SHOOT (EKSEKUSI INDIVIDUAL MASSAL)
         # ============================================================
         if not SILENT_MODE:
             print()
             info("Semua game terbuka. Menunggu 35 detik agar Main Menu matang sempurna...")
         time.sleep(35)
 
-        if not SILENT_MODE: info("Memanggil Termux ke depan (Menyembunyikan paksa game tanpa Home)...")
-        # Narik Termux ke depan, otomatis nge-minimize game yang lagi floating
-        subprocess.run(["su", "-c", "am start -n com.termux/com.termux.app.TermuxActivity"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        time.sleep(4)
-
-        # ============================================================
-        # FASE 3: INJEKSI MASSAL SERENTAK (WARM BOOT)
-        # ============================================================
-        title("FASE 2: INJEKSI LINK SERENTAK")
+        title("FASE 2: INJEKSI LINK (WAKE & SHOOT)")
         
-        # Tembakan Pertama
         for package in selected:
             link = get_link_for_pkg(package, config)
             if link:
-                if not SILENT_MODE: info(f"Membangunkan dan menyuntik Link ke {package}...")
-                cmd = f"su -c \"am start -f 0x14000000 -a android.intent.action.VIEW -d '{link}' {package}\""
+                if not SILENT_MODE: info(f"Membangunkan {package} dari mode bubble...")
+                # Perintah Monkey bakal mencet aplikasinya secara virtual, mekarin bubble-nya
+                subprocess.run(f"su -c \"monkey -p {package} -c android.intent.category.LAUNCHER 1\"", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                
+                # Kasih napas 5 detik biar animasi mekarnya kelar dan layar nerima input
+                time.sleep(5)
+                
+                if not SILENT_MODE: info(f"Menyuntik Link ke {package}...")
+                cmd = f"su -c \"am start -a android.intent.action.VIEW -d '{link}' {package}\""
                 subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        
-        # Double Tap (Buat jaga-jaga)
-        if not SILENT_MODE: info("Menunggu 12 detik untuk Double Tap Massal...")
-        time.sleep(12)
-        for package in selected:
-            link = get_link_for_pkg(package, config)
-            if link:
-                cmd = f"su -c \"am start -f 0x14000000 -a android.intent.action.VIEW -d '{link}' {package}\""
+                
+                # Double tap
+                time.sleep(12)
                 subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                
+                # Jeda sebelum pindah ngebangunin akun sebelah
+                if not SILENT_MODE: info("Menunggu 5 detik sebelum lanjut ke akun sebelah...")
+                time.sleep(5)
 
         success("Seluruh fase Injeksi Massal berhasil dieksekusi!")
         time.sleep(4)
@@ -554,11 +549,9 @@ def main():
         
         SILENT_MODE = True 
 
-        # HARD CLEAR
         sys.stdout.write('\033c\033[2J\033[3J\033[H')
         sys.stdout.flush()
 
-        # Mulai jalankan Engine Manager
         manager = Manager(
             selected,
             config,
