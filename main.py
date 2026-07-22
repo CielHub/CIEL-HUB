@@ -424,45 +424,40 @@ def get_link_for_pkg(pkg, config):
     elif method == "private_server_tiap_akun":
         return config.get("ps_tiap_akun", {}).get(pkg, "").strip()
     return ""
+    
 
-# Fungsi ini cuma dipakai buat RECOVERY pas script udah jalan (oleh watchdog)
-# Fungsi ini cuma dipakai buat RECOVERY pas script udah jalan (oleh watchdog)
 def join_private_server(package, config):
     link = get_link_for_pkg(package, config)
     if not link: return
 
-    # 1. KUNCI TERMUX DI DEPAN SEBELUM KILL
-    # Mencegah layar terlempar ke Home Screen yang bikin clone lain jadi balon!
-    if not SILENT_MODE: info(f"[RECOVERY] Mengamankan dashboard Termux...")
-    subprocess.run(["su", "-c", "am start -n com.termux/com.termux.app.TermuxActivity"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(1)
+    # 1. Pemanasan (Mancing UI No Mercy)
+    if not SILENT_MODE: info(f"[RECOVERY] Pemanasan {package} (Menunggu 30s)...")
+    launch_package(package)
+    time.sleep(30) 
 
-    # 2. Reset Memori (Langsung kill aja, ga usah pemanasan 30 detik)
+    # 2. Cuci Gudang (Kill Paksa)
     if not SILENT_MODE: info(f"[RECOVERY] Kill {package} untuk reset memori...")
     subprocess.run(["su", "-c", f"am force-stop {package}"])
-    time.sleep(2)
+    time.sleep(3) # Kasih napas biar beneran mati
 
-    # 3. Startup Ulang
+    # 3. Buka Ulang (Start Fresh)
     if not SILENT_MODE: info(f"[RECOVERY] Membuka ulang {package}...")
     launch_package(package)
-    time.sleep(2)
 
-    # 4. KUNCI TERMUX LAGI
-    # Biar package yang baru dibuka ini melayang di atas Termux, bukan ngambil full screen
-    subprocess.run(["su", "-c", "am start -n com.termux/com.termux.app.TermuxActivity"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # 4. Fast Wait (Tunggu menu bentar aja)
+    # Kita setting 12 detik, kalau dirasa masih kurang cepet/kelamaan, lu bisa ubah angka 12 ini.
+    if not SILENT_MODE: info(f"[RECOVERY] Loading kilat (12s)...")
+    time.sleep(12)
 
-    # 5. Tunggu Sebentar Saja (15 detik)
-    # Sesuaikan angka 15 ini kalau ternyata menu Roblox butuh waktu lebih lama/cepet di HP lu
-    if not SILENT_MODE: info(f"[RECOVERY] Loading kilat (5s)...")
-    time.sleep(5)
-
-    # 6. Injeksi Langsung
+    # 5. Fast Inject (Tembak langsung sebelum disconnect/jadi balon)
     if not SILENT_MODE: info(f"[RECOVERY] Menembak Link Server ke {package}...")
     cmd = f"su -c \"am start -f 0x14000000 -a android.intent.action.VIEW -d '{link}' {package}\""
+    
+    # Tembakan pertama
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    # Double tap (jeda 8 detik buat mastiin link nyantol)
-    time.sleep(8)
+    # Double tap (Jeda 5 detik aja biar ngebut)
+    time.sleep(5)
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     return True
