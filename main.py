@@ -489,28 +489,25 @@ def join_private_server(package, config):
     if not link:
         return
 
-    if not SILENT_MODE: info(f"Menunggu {package} menyelesaikan Cold Boot (30s)...")
-    time.sleep(30) 
+    if not SILENT_MODE: info(f"Menunggu {package} siap menerima link (40s)...")
+    # Kasih waktu lebih panjang biar Main Menu bener-bener mateng dan siap
+    time.sleep(40) 
 
     # ==========================================
-    # THE STEALTH WARM BOOT TRICK
+    # STEALTH WARM BOOT DIHAPUS SESUAI INSTRUKSI
+    # (Karena bikin floating No Mercy hilang)
     # ==========================================
-    if not SILENT_MODE: info("Menggeser game ke Background tanpa merusak clone lain...")
-    
-    # PERBAIKAN: Jangan pakai tombol Home! Panggil Termux ke depan layar.
-    # Ini bakal ngedorong Roblox ke background secara natural tanpa ngerusak app floating lain.
-    subprocess.run(["su", "-c", "am start -n com.termux/com.termux.app.TermuxActivity"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    
-    time.sleep(3)
 
-    if not SILENT_MODE: info(f"Menembak Link ke {package} dari background...")
+    if not SILENT_MODE: info(f"Menembak Link Server ke {package}...")
     
-    # Paksa bangunkan game dan suntik link
-    cmd = f"su -c \"am start -f 0x14000000 -a android.intent.action.VIEW -d '{link}' {package}\""
+    # Pakai FLAG_ACTIVITY_NEW_TASK (-f 0x10000000)
+    # Ini maksa link masuk ke aplikasi tanpa perlu minimize/kehilangan fokus
+    cmd = f"su -c \"am start -f 0x10000000 -a android.intent.action.VIEW -d '{link}' {package}\""
     
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    time.sleep(12)
+    # Double Tap buat jaga-jaga kalau game ngelag
+    time.sleep(15)
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     return True
