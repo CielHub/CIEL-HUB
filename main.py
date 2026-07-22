@@ -460,6 +460,8 @@ def detect_single_username(pkg, config, index):
     return config
 
 def join_private_server(package, config):
+    import urllib.request
+    
     method = config.get("join_method")
     
     if method == "private_server":
@@ -472,8 +474,37 @@ def join_private_server(package, config):
     if not link:
         return
 
+    # ==========================================
+    # BYPASS LINK SHARE?CODE
+    # ==========================================
+    if "share?code=" in link:
+        if not SILENT_MODE: info(f"Menerjemahkan link share?code ke format VIP lama...")
+        try:
+            # Pura-pura ngeklik link untuk mengambil URL aslinya dari server Roblox
+            req = urllib.request.Request(link, method="HEAD")
+            with urllib.request.urlopen(req, timeout=10) as response:
+                link = response.url
+                if not SILENT_MODE: success(f"Link VIP asli didapatkan!")
+        except Exception as e:
+            if not SILENT_MODE: warning(f"Gagal menerjemahkan link, mencoba lanjut dengan link asli: {e}")
+
     if not SILENT_MODE: info(f"Menunggu game engine {package} siap sepenuhnya...")
     time.sleep(12) 
+
+    # ==========================================
+    # INJECT KE APLIKASI
+    # ==========================================
+    if not SILENT_MODE: info(f"Injecting Link Server ke {package}...")
+
+    cmd = f"su -c \"am start -a android.intent.action.VIEW -d '{link}' {package}\""
+
+    subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    # Double Tap untuk memastikan terbaca
+    time.sleep(8)
+    subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    return True
 
     # ==========================================
     # KEMBALI KE BASIC TAPI PAKAI ROOT (SU -C)
