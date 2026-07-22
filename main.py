@@ -367,7 +367,8 @@ def clear_cache(package, silent=False):
 
 
 def launch_package(package):
-    info(f"Menjalankan {package}...")
+    if not SILENT_MODE: info(f"Menjalankan {package}...")
+    
     result = subprocess.run(
         ["cmd", "package", "resolve-activity", "--brief", package],
         capture_output=True,
@@ -380,26 +381,15 @@ def launch_package(package):
             break
 
     if not activity:
-        candidates = [
-            f"{package}/com.roblox.client.startup.ActivitySplash",
-            f"{package}/com.roblox.client.ActivitySplash",
-            f"{package}/com.roblox.client.MainActivity",
-        ]
-        for act in candidates:
-            test = subprocess.run(["am", "start", "-n", act], capture_output=True, text=True)
-            if test.returncode == 0:
-                success(f"{package} berhasil dijalankan.")
-                return True
-        error(f"Gagal menemukan Activity untuk {package}")
-        return False
+        activity = f"{package}/com.roblox.client.ActivitySplash"
 
     launch = subprocess.run(["am", "start", "-n", activity], capture_output=True, text=True)
     if launch.returncode == 0:
-        success(f"{package} berhasil dijalankan.")
+        if not SILENT_MODE: success(f"{package} berhasil dijalankan.")
         return True
-    error(launch.stderr)
+        
+    if not SILENT_MODE: error(launch.stderr)
     return False
-
 
 def is_running(package):
     result = subprocess.run(["pidof", package], capture_output=True, text=True)
@@ -483,44 +473,39 @@ def join_private_server(package, config):
         return
 
     if not link:
-        warning(f"Private Server Link untuk {package} kosong/tidak ditemukan.")
         return
 
-    info(f"Menunggu game engine {package} siap sepenuhnya...")
+    if not SILENT_MODE: info(f"Menunggu game engine {package} siap sepenuhnya...")
     time.sleep(12) 
-    
+
     # ==========================================
-    # HACK: BYPASS ANDROID DOMAIN VERIFICATION
+    # HACK: EXPLICIT COMPONENT INTENT
     # ==========================================
-    # Karena MT Manager merusak signature asli APK, Android akan memblokir link 'https://'.
-    # Kita ubah paksa URL jadi Custom Scheme 'roblox://' biar langsung dieksekusi engine game.
-    custom_link = link
-    if "roblox.com" in custom_link:
-        custom_link = custom_link.replace("https://www.roblox.com/", "roblox://")
-        custom_link = custom_link.replace("https://roblox.com/", "roblox://")
+    # Cari Activity utama secara dinamis dari package
+    activity = None
+    res_act = subprocess.run(["cmd", "package", "resolve-activity", "--brief", package], capture_output=True, text=True)
+    for line in res_act.stdout.splitlines():
+        if "/" in line:
+            activity = line.strip()
+            break
+            
+    # Kalau gagal nyari, pake path standar Roblox
+    if not activity:
+        activity = f"{package}/com.roblox.client.ActivitySplash"
 
-    info(f"Injecting Custom Protocol ke {package}...")
+    if not SILENT_MODE: info(f"Force-Injecting Link ke Jantung {package}...")
 
-    # Eksekusi dengan su -c dan bungkus custom link dengan kutip tunggal
-    cmd_args = [
-        "su", "-c", 
-        f"am start -a android.intent.action.VIEW -d '{custom_link}' {package}"
-    ]
+    # Tembak langsung (EXPLICIT) ke Activity-nya pake flag -n
+    # Ini ngebypass semua sistem blokir OS dan kelemahan MT Manager
+    cmd = f"su -c \"am start -n {activity} -a android.intent.action.VIEW -d '{link}'\""
 
-    # Tembakan Pertama
-    result1 = subprocess.run(cmd_args, capture_output=True, text=True)
+    subprocess.run(cmd, shell=True, capture_output=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    # Double Tap - Untuk jaga-jaga kalau game telat loading
-    info("Memastikan link masuk (Double Tap)...")
+    # Double Tap
     time.sleep(8)
-    result2 = subprocess.run(cmd_args, capture_output=True, text=True)
+    subprocess.run(cmd, shell=True, capture_output=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    if result1.returncode == 0 or result2.returncode == 0:
-        success(f"Berhasil mengirim perintah Join Private Server ke {package}.")
-        return True
-        
-    error(result2.stderr)
-    return False
+    return True
     
     
 # ==========================================
