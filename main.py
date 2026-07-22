@@ -433,16 +433,24 @@ def join_private_server(package, config):
     if not SILENT_MODE: info(f"Menunggu {package} siap menerima link (30s)...")
     time.sleep(30) 
 
-    if not SILENT_MODE: info("Menggeser game ke background (Stealth Warm Boot)...")
-    subprocess.run(["su", "-c", "am start -n com.termux/com.termux.app.TermuxActivity"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(3)
+    # ============================================================
+    # PERBAIKAN RECOVERY:
+    # Menghapus trik narik Termux ke depan (Stealth Warm Boot Lama)
+    # Tujuannya agar fokus layar tidak berubah dan clone lain 
+    # yang sedang farming tidak ketimpa/berubah menjadi bubbles.
+    # ============================================================
 
-    if not SILENT_MODE: info(f"Menembak Link Server ke {package}...")
+    if not SILENT_MODE: info(f"Menembak Link Server ke {package} secara sunyi...")
+    
+    # Injeksi langsung dengan bendera 0x14000000 
     cmd = f"su -c \"am start -f 0x14000000 -a android.intent.action.VIEW -d '{link}' {package}\""
     
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    # Double tap untuk memastikan link nempel tanpa ganggu yang lain
     time.sleep(12)
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
     return True
 
 # ==========================================
