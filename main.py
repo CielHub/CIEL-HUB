@@ -494,7 +494,6 @@ def join_private_server(package, config):
 
     cmd = f"su -c \"am start -n {activity} -a android.intent.action.VIEW -d '{link}'\""
 
-    # PERBAIKAN: Tanpa capture_output=True biar script tidak crash saat dipasangkan dengan DEVNULL
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     # Double Tap
@@ -508,6 +507,8 @@ def join_private_server(package, config):
 # ==========================================
 
 def main():
+    global SILENT_MODE # PERBAIKAN: Deklarasi di awal fungsi biar Python ga crash
+    
     os.system("stty sane")
     banner()
 
@@ -573,8 +574,7 @@ def main():
         # ==========================================
         
         # 1. Aktifkan mode bisu biar log recovery ga ngerusak layar dashboard nanti
-        global SILENT_MODE
-        SILENT_MODE = True
+        SILENT_MODE = True 
 
         # 2. HARD CLEAR: Sapu bersih layar dan history scroll Termux 
         sys.stdout.write('\033c\033[2J\033[3J\033[H')
