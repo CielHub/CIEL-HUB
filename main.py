@@ -111,7 +111,6 @@ def load_config():
             with open(CONFIG_FILE, "r") as f:
                 old = json.load(f)
             
-            # Bersihin config lama biar ga nyampah
             if "staggered_delay" in old:
                 del old["staggered_delay"]
             if "staggered_delay_min" in old:
@@ -382,21 +381,7 @@ def is_running(package):
 def smart_launch(package):
     if not launch_package(package):
         return False
-    wait_until_foreground(package)
-    return True
-
-def is_foreground(package):
-    result = subprocess.run(["su", "-c", "dumpsys window"], capture_output=True, text=True)
-    return package in result.stdout and "mCurrentFocus" in result.stdout
-
-def wait_until_foreground(package, timeout=20):
-    if not SILENT_MODE: info("Menunggu Roblox siap...")
-    for _ in range(timeout):
-        if is_foreground(package):
-            if not SILENT_MODE: success("Roblox siap.")
-            return True
-        time.sleep(1)
-    if not SILENT_MODE: warning("Timeout, lanjut eksekusi berikutnya...")
+    # Kita hapus wait_until_foreground karena sekarang main hajar barengan
     return True
 
 def get_link_for_pkg(pkg, config):
@@ -408,7 +393,7 @@ def get_link_for_pkg(pkg, config):
     return ""
 
 # ============================================================
-# FUNGSI RECOVERY (WAKE & SHOOT) KHUSUS 1 AKUN (WATCHDOG)
+# FUNGSI RECOVERY (WAKE & SHOOT) KHUSUS WATCHDOG
 # ============================================================
 def join_private_server(package, config):
     link = get_link_for_pkg(package, config)
@@ -426,7 +411,6 @@ def join_private_server(package, config):
     
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(4)
-    # Double tap khusus Recovery tetep ada (karena cuma ngurusin 1 akun, aman)
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     return True
@@ -472,31 +456,44 @@ def main():
         total_clones = len(selected)
         
         # ============================================================
-        # FASE 1: BUKA SEMUA GAME DULU (RAPID FIRE)
+        # FASE 1: PEMANASAN MASSAL (TRIGGER UI NO MERCY)
         # ============================================================
-        title("FASE 1: MEMBUKA SEMUA AKUN (RAPID FIRE)")
-        for i, package in enumerate(selected):
-            # Langsung force open tanpa nunggu fungsi foreground biar ngebut
+        title("FASE 1: PEMANASAN APLIKASI")
+        info("Membuka semua package secara kilat untuk memancing UI Delta...")
+        for package in selected:
             launch_package(package)
+            time.sleep(2) # Jeda 2 detik aja
             
-            if i < total_clones - 1:
-                # Jeda tipis 2 detik sesuai request!
-                if not SILENT_MODE: info(f"Jeda kilat 2 detik...")
-                time.sleep(2)
-                    
+        time.sleep(4) # Ngasih napas bentar ke HP sebelum pembantaian
+        
         # ============================================================
-        # FASE 2: PEMATANGAN BATCH
+        # FASE 2: SAPU BERSIH (KILL ALL)
         # ============================================================
+        title("FASE 2: RESET MEMORI (KILL ALL)")
+        info("Mematikan paksa semua aplikasi untuk sinkronisasi Cold Boot...")
+        for package in selected:
+            subprocess.run(["su", "-c", f"am force-stop {package}"])
+            if not SILENT_MODE: success(f"{package} dimatikan.")
+            
+        time.sleep(3) # Pastikan semua proses beneran mati
+        
+        # ============================================================
+        # FASE 3: COLD BOOT TERSINKRONISASI 
+        # ============================================================
+        title("FASE 3: STARTUP BERSAMAAN")
+        for package in selected:
+            launch_package(package)
+            time.sleep(2) # Jeda kilat 2 detik
+            
         if not SILENT_MODE:
             print()
-            info("Semua game terbuka. Menunggu 35 detik agar Main Menu matang barengan...")
-        # Walau bukanya cepet, tetep butuh nunggu mereka loading dari layar hitam
+            info("Menunggu 35 detik agar semua Main Menu siap...")
         time.sleep(35)
 
         # ============================================================
-        # FASE 3: INJEKSI MASSAL SERENTAK (FAST WAKE & SHOOT)
+        # FASE 4: INJEKSI MASSAL SERENTAK (WAKE & SHOOT KILAT)
         # ============================================================
-        title("FASE 2: INJEKSI LINK (FAST WAKE & SHOOT)")
+        title("FASE 4: INJEKSI LINK KILAT")
         
         for package in selected:
             link = get_link_for_pkg(package, config)
@@ -505,16 +502,17 @@ def main():
                 
                 # Buka balon
                 subprocess.run(f"su -c \"monkey -p {package} -c android.intent.category.LAUNCHER 1\"", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                time.sleep(2) # Tunggu mekar 2 detik doang
+                time.sleep(2) # Tunggu 2 detik buat mekar
                 
                 # Tembak Jantung
                 cmd = f"su -c \"am start -a android.intent.action.VIEW -d '{link}' {package}\""
                 subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 
-                time.sleep(3) # Kasih napas 3 detik buat nangkep link sebelum pindah ke clone sebelah
+                # Jeda tipis banget biar OS ga nge-freeze sebelum pindah ke kloningan lain
+                time.sleep(2)
 
-        success("Seluruh fase Injeksi Massal berhasil dieksekusi!")
-        time.sleep(2)
+        success("Seluruh fase Startup & Injeksi berhasil!")
+        time.sleep(3)
 
         # ==========================================
         # TRANSISI KE DASHBOARD
