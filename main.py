@@ -485,30 +485,21 @@ def join_private_server(package, config):
         return
 
     info(f"Menunggu game engine {package} siap sepenuhnya...")
-    # WAJIB! Jangan dikurangin. Kompensasi CPU throttling Android saat buka clone.
+    # Tetep kasih jeda 12 detik, jangan dikurangin biar game beneran siap
     time.sleep(12) 
-    
     info(f"Injecting Private Server Link ke {package}...")
 
-    # Format eksekusi anti-gagal:
-    # 1. Pake array subprocess biar bersih
-    # 2. Pake "su -c" biar tembus restriksi Android 10+
-    # 3. Pake -f 0x14000000 buat maksa game baca URL
-    # 4. Link dibungkus kutip tunggal ('') biar & dan = ga bikin error
-    
-    cmd_args = [
-        "su", 
-        "-c", 
-        f"am start -f 0x14000000 -a android.intent.action.VIEW -d '{link}' {package}"
-    ]
+    # Perhatikan ada tambahan --user 0 di sini
+    # Kita pakai kutip ganda (") untuk su -c, dan kutip tunggal (') untuk ngebungkus URL link-nya
+    cmd = f"su -c \"am start --user 0 -a android.intent.action.VIEW -d '{link}' {package}\""
 
     # Tembakan Pertama
-    result1 = subprocess.run(cmd_args, capture_output=True, text=True)
+    result1 = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     
-    # Double Tap - Jaga-jaga buat akun yang loading-nya kelewat lambat
     info("Memastikan link masuk (Double Tap)...")
     time.sleep(8)
-    result2 = subprocess.run(cmd_args, capture_output=True, text=True)
+    # Tembakan Kedua
+    result2 = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
     if result1.returncode == 0 or result2.returncode == 0:
         success(f"Berhasil mengirim perintah Join Private Server ke {package}.")
