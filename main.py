@@ -367,7 +367,6 @@ def clear_cache(package, silent=False):
 def launch_package(package):
     if not SILENT_MODE: info(f"Menjalankan {package}...")
     
-    # PERBAIKAN: Wajib pakai su -c biar nggak ditolak sama sistem background Android
     result = subprocess.run(
         ["su", "-c", f"cmd package resolve-activity --brief {package}"],
         capture_output=True,
@@ -382,7 +381,6 @@ def launch_package(package):
     if not activity:
         activity = f"{package}/com.roblox.client.ActivitySplash"
 
-    # PERBAIKAN: Wajib pakai su -c untuk am start!
     launch = subprocess.run(["su", "-c", f"am start -n {activity}"], capture_output=True, text=True)
     if launch.returncode == 0:
         if not SILENT_MODE: success(f"{package} berhasil dijalankan.")
@@ -402,7 +400,6 @@ def smart_launch(package):
     return True
 
 def is_foreground(package):
-    # PERBAIKAN: Pakai su -c biar dumpsys selalu dapet akses
     result = subprocess.run(["su", "-c", "dumpsys window"], capture_output=True, text=True)
     return package in result.stdout and "mCurrentFocus" in result.stdout
 
@@ -479,30 +476,15 @@ def join_private_server(package, config):
     time.sleep(12) 
 
     # ==========================================
-    # HACK: BYPASS ANDROID DOMAIN VERIFICATION
+    # KEMBALI KE BASIC TAPI PAKAI ROOT (SU -C)
     # ==========================================
-    # Ubah https:// jadi roblox:// biar 100% tembus limitasi signature MT Manager
-    custom_link = link
-    if "roblox.com" in custom_link:
-        custom_link = custom_link.replace("https://www.roblox.com/", "roblox://")
-        custom_link = custom_link.replace("https://roblox.com/", "roblox://")
+    # Hapus -n (Activity target) karena game udah nyala di background.
+    # Gunakan link asli utuh (https) karena 'share?code=' butuh verifikasi server resmi.
 
-    # ==========================================
-    # HACK: EXPLICIT COMPONENT INTENT
-    # ==========================================
-    activity = None
-    res_act = subprocess.run(["su", "-c", f"cmd package resolve-activity --brief {package}"], capture_output=True, text=True)
-    for line in res_act.stdout.splitlines():
-        if "/" in line:
-            activity = line.strip()
-            break
-            
-    if not activity:
-        activity = f"{package}/com.roblox.client.ActivitySplash"
+    if not SILENT_MODE: info(f"Injecting Link Server ke {package}...")
 
-    if not SILENT_MODE: info(f"Force-Injecting Link ke Jantung {package}...")
-
-    cmd = f"su -c \"am start -n {activity} -a android.intent.action.VIEW -d '{custom_link}'\""
+    # Perintah eksekusi paling murni. Link dilindungi kutip tunggal biar '&' ga error.
+    cmd = f"su -c \"am start -a android.intent.action.VIEW -d '{link}' {package}\""
 
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
