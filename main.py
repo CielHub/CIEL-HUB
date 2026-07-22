@@ -426,40 +426,47 @@ def get_link_for_pkg(pkg, config):
     return ""
 
 # Fungsi ini cuma dipakai buat RECOVERY pas script udah jalan (oleh watchdog)
+# Fungsi ini cuma dipakai buat RECOVERY pas script udah jalan (oleh watchdog)
 def join_private_server(package, config):
     link = get_link_for_pkg(package, config)
     if not link: return
 
-    # 1. Pemanasan (Diasumsikan watchdog udah nge-launch game sebelum manggil ini)
-    if not SILENT_MODE: info(f"[RECOVERY] Fase 1: Pemanasan {package} (30s)...")
-    time.sleep(30) 
+    # 1. KUNCI TERMUX DI DEPAN SEBELUM KILL
+    # Mencegah layar terlempar ke Home Screen yang bikin clone lain jadi balon!
+    if not SILENT_MODE: info(f"[RECOVERY] Mengamankan dashboard Termux...")
+    subprocess.run(["su", "-c", "am start -n com.termux/com.termux.app.TermuxActivity"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(1)
 
-    # 2. Reset Memori (Sama kayak logika cuci gudang di awal)
-    if not SILENT_MODE: info(f"[RECOVERY] Fase 2: Kill {package} untuk reset memori...")
+    # 2. Reset Memori (Langsung kill aja, ga usah pemanasan 30 detik)
+    if not SILENT_MODE: info(f"[RECOVERY] Kill {package} untuk reset memori...")
     subprocess.run(["su", "-c", f"am force-stop {package}"])
-    time.sleep(3)
+    time.sleep(2)
 
     # 3. Startup Ulang
-    if not SILENT_MODE: info(f"[RECOVERY] Fase 3: Membuka ulang {package}...")
+    if not SILENT_MODE: info(f"[RECOVERY] Membuka ulang {package}...")
     launch_package(package)
+    time.sleep(2)
 
-    # 4. Tunggu Matang
-    if not SILENT_MODE: info(f"[RECOVERY] Menunggu {package} masuk Main Menu (35s)...")
-    time.sleep(35)
+    # 4. KUNCI TERMUX LAGI
+    # Biar package yang baru dibuka ini melayang di atas Termux, bukan ngambil full screen
+    subprocess.run(["su", "-c", "am start -n com.termux/com.termux.app.TermuxActivity"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    # 5. Injeksi Sunyi (Tanpa manggil Termux ke depan biar clone lain ga jadi bubbles)
-    if not SILENT_MODE: info(f"[RECOVERY] Fase 4: Menembak Link Server ke {package}...")
-    
-    # Injeksi langsung dengan bendera 0x14000000 
+    # 5. Tunggu Sebentar Saja (15 detik)
+    # Sesuaikan angka 15 ini kalau ternyata menu Roblox butuh waktu lebih lama/cepet di HP lu
+    if not SILENT_MODE: info(f"[RECOVERY] Loading kilat (5s)...")
+    time.sleep(5)
+
+    # 6. Injeksi Langsung
+    if not SILENT_MODE: info(f"[RECOVERY] Menembak Link Server ke {package}...")
     cmd = f"su -c \"am start -f 0x14000000 -a android.intent.action.VIEW -d '{link}' {package}\""
-    
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    # Double tap untuk memastikan link nempel
-    time.sleep(12)
+    # Double tap (jeda 8 detik buat mastiin link nyantol)
+    time.sleep(8)
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     return True
+    
     
 
 # ==========================================
