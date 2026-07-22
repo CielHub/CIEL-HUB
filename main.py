@@ -459,9 +459,8 @@ def detect_single_username(pkg, config, index):
         save_config(config)
     return config
 
+
 def join_private_server(package, config):
-    import urllib.request
-    
     method = config.get("join_method")
     
     if method == "private_server":
@@ -474,56 +473,27 @@ def join_private_server(package, config):
     if not link:
         return
 
-    # ==========================================
-    # BYPASS LINK SHARE?CODE
-    # ==========================================
-    if "share?code=" in link:
-        if not SILENT_MODE: info(f"Menerjemahkan link share?code ke format VIP lama...")
-        try:
-            # Pura-pura ngeklik link untuk mengambil URL aslinya dari server Roblox
-            req = urllib.request.Request(link, method="HEAD")
-            with urllib.request.urlopen(req, timeout=10) as response:
-                link = response.url
-                if not SILENT_MODE: success(f"Link VIP asli didapatkan!")
-        except Exception as e:
-            if not SILENT_MODE: warning(f"Gagal menerjemahkan link, mencoba lanjut dengan link asli: {e}")
+    if not SILENT_MODE: info(f"Menunggu game {package} melewati loading screen...")
+    
+    # PERBAIKAN TIMING: Kita naikkan drastis dari 12 detik jadi 25 detik.
+    # Ngasih napas panjang buat CPU HP lu ngerender Main Menu sampai mateng.
+    time.sleep(25) 
 
-    if not SILENT_MODE: info(f"Menunggu game engine {package} siap sepenuhnya...")
-    time.sleep(12) 
-
-    # ==========================================
-    # INJECT KE APLIKASI
-    # ==========================================
     if not SILENT_MODE: info(f"Injecting Link Server ke {package}...")
 
     cmd = f"su -c \"am start -a android.intent.action.VIEW -d '{link}' {package}\""
 
+    # Tembakan Pertama (Untuk game yang loadingnya cepet)
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    # Double Tap untuk memastikan terbaca
-    time.sleep(8)
+    # PERBAIKAN DOUBLE TAP: Jeda antar tembakan diperlebar jadi 15 detik.
+    # Kalau tembakan pertama gagal karena game masih nyangkut di logo,
+    # tembakan kedua di detik ke-40 ini dijamin bakal masuk!
+    time.sleep(15)
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     return True
-
-    # ==========================================
-    # KEMBALI KE BASIC TAPI PAKAI ROOT (SU -C)
-    # ==========================================
-    # Hapus -n (Activity target) karena game udah nyala di background.
-    # Gunakan link asli utuh (https) karena 'share?code=' butuh verifikasi server resmi.
-
-    if not SILENT_MODE: info(f"Injecting Link Server ke {package}...")
-
-    # Perintah eksekusi paling murni. Link dilindungi kutip tunggal biar '&' ga error.
-    cmd = f"su -c \"am start -a android.intent.action.VIEW -d '{link}' {package}\""
-
-    subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    # Double Tap
-    time.sleep(8)
-    subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    return True
 
 # ==========================================
 # MAIN
