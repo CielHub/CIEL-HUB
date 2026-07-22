@@ -474,34 +474,30 @@ def join_private_server(package, config):
         return
 
     if not SILENT_MODE: info(f"Menunggu {package} menyelesaikan Cold Boot (30s)...")
-    # Jeda 30 detik biarin Roblox dan Delta loading sampai beneran mateng di Main Menu
     time.sleep(30) 
 
     # ==========================================
-    # THE FAKE WARM BOOT TRICK
+    # THE STEALTH WARM BOOT TRICK
     # ==========================================
-    if not SILENT_MODE: info("Memaksa game ke Background (Simulasi Warm Boot)...")
-    # Pencet tombol HOME secara virtual biar game ke-minimize
-    subprocess.run(["su", "-c", "input keyevent 3"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if not SILENT_MODE: info("Menggeser game ke Background tanpa merusak clone lain...")
     
-    # Jeda dikit biar OS kelar nge-minimize (ngasih napas ke CPU)
+    # PERBAIKAN: Jangan pakai tombol Home! Panggil Termux ke depan layar.
+    # Ini bakal ngedorong Roblox ke background secara natural tanpa ngerusak app floating lain.
+    subprocess.run(["su", "-c", "am start -n com.termux/com.termux.app.TermuxActivity"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
     time.sleep(3)
 
     if not SILENT_MODE: info(f"Menembak Link ke {package} dari background...")
     
-    # Tambahin FLAG_ACTIVITY_NEW_TASK & CLEAR_TOP (-f 0x14000000)
-    # Ini maksa Android buat "membangunkan" game dari background dan nyuapin link-nya
+    # Paksa bangunkan game dan suntik link
     cmd = f"su -c \"am start -f 0x14000000 -a android.intent.action.VIEW -d '{link}' {package}\""
     
-    # Tembakan Pertama
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    # Double Tap buat jaga-jaga
     time.sleep(12)
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     return True
-    
 
 
 # ==========================================
