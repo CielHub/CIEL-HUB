@@ -485,21 +485,33 @@ def join_private_server(package, config):
         return
 
     info(f"Menunggu game engine {package} siap sepenuhnya...")
-    # Tetep kasih jeda 12 detik, jangan dikurangin biar game beneran siap
     time.sleep(12) 
-    info(f"Injecting Private Server Link ke {package}...")
+    
+    # ==========================================
+    # HACK: BYPASS ANDROID DOMAIN VERIFICATION
+    # ==========================================
+    # Karena MT Manager merusak signature asli APK, Android akan memblokir link 'https://'.
+    # Kita ubah paksa URL jadi Custom Scheme 'roblox://' biar langsung dieksekusi engine game.
+    custom_link = link
+    if "roblox.com" in custom_link:
+        custom_link = custom_link.replace("https://www.roblox.com/", "roblox://")
+        custom_link = custom_link.replace("https://roblox.com/", "roblox://")
 
-    # Perhatikan ada tambahan --user 0 di sini
-    # Kita pakai kutip ganda (") untuk su -c, dan kutip tunggal (') untuk ngebungkus URL link-nya
-    cmd = f"su -c \"am start --user 0 -a android.intent.action.VIEW -d '{link}' {package}\""
+    info(f"Injecting Custom Protocol ke {package}...")
+
+    # Eksekusi dengan su -c dan bungkus custom link dengan kutip tunggal
+    cmd_args = [
+        "su", "-c", 
+        f"am start -a android.intent.action.VIEW -d '{custom_link}' {package}"
+    ]
 
     # Tembakan Pertama
-    result1 = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    result1 = subprocess.run(cmd_args, capture_output=True, text=True)
     
+    # Double Tap - Untuk jaga-jaga kalau game telat loading
     info("Memastikan link masuk (Double Tap)...")
     time.sleep(8)
-    # Tembakan Kedua
-    result2 = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    result2 = subprocess.run(cmd_args, capture_output=True, text=True)
 
     if result1.returncode == 0 or result2.returncode == 0:
         success(f"Berhasil mengirim perintah Join Private Server ke {package}.")
@@ -507,6 +519,7 @@ def join_private_server(package, config):
         
     error(result2.stderr)
     return False
+    
     
     
 # ==========================================
