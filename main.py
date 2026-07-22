@@ -472,7 +472,7 @@ def detect_single_username(pkg, config, index):
 
 def join_private_server(package, config):
     method = config.get("join_method")
-
+    
     if method == "private_server":
         link = config.get("private_server_link", "").strip()
     elif method == "private_server_tiap_akun":
@@ -484,20 +484,37 @@ def join_private_server(package, config):
         warning(f"Private Server Link untuk {package} kosong/tidak ditemukan.")
         return
 
-    info("Menunggu sebentar sebelum Join...")
-    time.sleep(5)
-    info(f"Join Private Server untuk {package}...")
+    info(f"Menunggu game engine {package} siap sepenuhnya...")
+    # WAJIB! Jangan dikurangin. Kompensasi CPU throttling Android saat buka clone.
+    time.sleep(12) 
+    
+    info(f"Injecting Private Server Link ke {package}...")
 
-    result = subprocess.run(
-        ["am", "start", "-a", "android.intent.action.VIEW", "-d", link, package],
-        capture_output=True,
-        text=True,
-    )
+    # Format eksekusi anti-gagal:
+    # 1. Pake array subprocess biar bersih
+    # 2. Pake "su -c" biar tembus restriksi Android 10+
+    # 3. Pake -f 0x14000000 buat maksa game baca URL
+    # 4. Link dibungkus kutip tunggal ('') biar & dan = ga bikin error
+    
+    cmd_args = [
+        "su", 
+        "-c", 
+        f"am start -f 0x14000000 -a android.intent.action.VIEW -d '{link}' {package}"
+    ]
 
-    if result.returncode == 0:
-        success("Berhasil mengirim perintah Join Private Server.")
+    # Tembakan Pertama
+    result1 = subprocess.run(cmd_args, capture_output=True, text=True)
+    
+    # Double Tap - Jaga-jaga buat akun yang loading-nya kelewat lambat
+    info("Memastikan link masuk (Double Tap)...")
+    time.sleep(8)
+    result2 = subprocess.run(cmd_args, capture_output=True, text=True)
+
+    if result1.returncode == 0 or result2.returncode == 0:
+        success(f"Berhasil mengirim perintah Join Private Server ke {package}.")
         return True
-    error(result.stderr)
+        
+    error(result2.stderr)
     return False
     
     
