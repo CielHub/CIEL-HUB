@@ -364,12 +364,12 @@ def clear_cache(package, silent=False):
         else:
             warning(f"Gagal bersihin cache (Pastikan punya akses Root).")
 
-
 def launch_package(package):
     if not SILENT_MODE: info(f"Menjalankan {package}...")
     
+    # PERBAIKAN: Wajib pakai su -c biar nggak ditolak sama sistem background Android
     result = subprocess.run(
-        ["cmd", "package", "resolve-activity", "--brief", package],
+        ["su", "-c", f"cmd package resolve-activity --brief {package}"],
         capture_output=True,
         text=True,
     )
@@ -382,7 +382,8 @@ def launch_package(package):
     if not activity:
         activity = f"{package}/com.roblox.client.ActivitySplash"
 
-    launch = subprocess.run(["am", "start", "-n", activity], capture_output=True, text=True)
+    # PERBAIKAN: Wajib pakai su -c untuk am start!
+    launch = subprocess.run(["su", "-c", f"am start -n {activity}"], capture_output=True, text=True)
     if launch.returncode == 0:
         if not SILENT_MODE: success(f"{package} berhasil dijalankan.")
         return True
@@ -390,9 +391,8 @@ def launch_package(package):
     if not SILENT_MODE: error(launch.stderr)
     return False
 
-
 def is_running(package):
-    result = subprocess.run(["pidof", package], capture_output=True, text=True)
+    result = subprocess.run(["su", "-c", f"pidof {package}"], capture_output=True, text=True)
     return bool(result.stdout.strip())
 
 def smart_launch(package):
@@ -402,7 +402,8 @@ def smart_launch(package):
     return True
 
 def is_foreground(package):
-    result = subprocess.run(["/system/bin/dumpsys", "window"], capture_output=True, text=True)
+    # PERBAIKAN: Pakai su -c biar dumpsys selalu dapet akses
+    result = subprocess.run(["su", "-c", "dumpsys window"], capture_output=True, text=True)
     return package in result.stdout and "mCurrentFocus" in result.stdout
 
 def wait_until_foreground(package, timeout=20):
@@ -478,10 +479,19 @@ def join_private_server(package, config):
     time.sleep(12) 
 
     # ==========================================
+    # HACK: BYPASS ANDROID DOMAIN VERIFICATION
+    # ==========================================
+    # Ubah https:// jadi roblox:// biar 100% tembus limitasi signature MT Manager
+    custom_link = link
+    if "roblox.com" in custom_link:
+        custom_link = custom_link.replace("https://www.roblox.com/", "roblox://")
+        custom_link = custom_link.replace("https://roblox.com/", "roblox://")
+
+    # ==========================================
     # HACK: EXPLICIT COMPONENT INTENT
     # ==========================================
     activity = None
-    res_act = subprocess.run(["cmd", "package", "resolve-activity", "--brief", package], capture_output=True, text=True)
+    res_act = subprocess.run(["su", "-c", f"cmd package resolve-activity --brief {package}"], capture_output=True, text=True)
     for line in res_act.stdout.splitlines():
         if "/" in line:
             activity = line.strip()
@@ -492,7 +502,7 @@ def join_private_server(package, config):
 
     if not SILENT_MODE: info(f"Force-Injecting Link ke Jantung {package}...")
 
-    cmd = f"su -c \"am start -n {activity} -a android.intent.action.VIEW -d '{link}'\""
+    cmd = f"su -c \"am start -n {activity} -a android.intent.action.VIEW -d '{custom_link}'\""
 
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
@@ -507,7 +517,7 @@ def join_private_server(package, config):
 # ==========================================
 
 def main():
-    global SILENT_MODE # PERBAIKAN: Deklarasi di awal fungsi biar Python ga crash
+    global SILENT_MODE 
     
     os.system("stty sane")
     banner()
