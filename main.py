@@ -381,6 +381,22 @@ def launch_package(package):
     if not activity:
         activity = f"{package}/com.roblox.client.ActivitySplash"
 
+    # PERBAIKAN: Gunakan bendera -f 0x18000000 untuk memaksa aplikasi dibuka 
+    # sebagai "New Task" & "Multiple Task" agar tidak mematikan clone sebelumnya.
+    cmd = f"su -c \"am start -f 0x18000000 -n {activity}\""
+    
+    launch = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if launch.returncode == 0:
+        if not SILENT_MODE: success(f"{package} berhasil dijalankan.")
+        return True
+        
+    if not SILENT_MODE: error(launch.stderr)
+    return False
+    
+
+    if not activity:
+        activity = f"{package}/com.roblox.client.ActivitySplash"
+
     launch = subprocess.run(["su", "-c", f"am start -n {activity}"], capture_output=True, text=True)
     if launch.returncode == 0:
         if not SILENT_MODE: success(f"{package} berhasil dijalankan.")
