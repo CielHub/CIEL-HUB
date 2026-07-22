@@ -18,6 +18,7 @@ ROBLOX_KEYWORDS = (
 # ==========================================
 # UI
 # ==========================================
+SILENT_MODE = False # Tambahin ini
 
 def clear():
     os.system("clear")
@@ -33,20 +34,21 @@ def banner():
 """ + "\033[0m")
     print(f"                 {VERSION} (Tempest Edition)\n")
 
+# Bikin fungsinya ngecek SILENT_MODE biar ga bacot pas dashboard nyala
 def info(msg):
-    print(f"[*] {msg}")
+    if not SILENT_MODE: print(f"[*] {msg}")
 
 def success(msg):
-    print(f"\033[92m[+] {msg}\033[0m")
+    if not SILENT_MODE: print(f"\033[92m[+] {msg}\033[0m")
 
 def warning(msg):
-    print(f"\033[93m[!] {msg}\033[0m")
+    if not SILENT_MODE: print(f"\033[93m[!] {msg}\033[0m")
 
 def error(msg):
-    print(f"\033[91m[-] {msg}\033[0m")
+    if not SILENT_MODE: print(f"\033[91m[-] {msg}\033[0m")
 
 def title(text):
-    print(f"\n\033[96m=== {text} ===\033[0m\n")
+    if not SILENT_MODE: print(f"\n\033[96m=== {text} ===\033[0m\n")
 
 # ==========================================
 # SCANNER
@@ -521,7 +523,6 @@ def join_private_server(package, config):
     return False
     
     
-    
 # ==========================================
 # MAIN
 # ==========================================
@@ -586,6 +587,21 @@ def main():
 
         success("Semua clone berhasil dijalankan.")
 
+        # ==========================================
+        # TRANSISI KE DASHBOARD (ANTI-OVERLAP)
+        # ==========================================
+        
+        # 1. Aktifkan mode bisu biar log recovery ga ngerusak layar dashboard nanti
+        global SILENT_MODE
+        SILENT_MODE = True
+
+        # 2. HARD CLEAR: Sapu bersih layar dan history scroll Termux 
+        # biar dashboard punya "kanvas putih" yang bersih
+        import sys
+        sys.stdout.write('\033c\033[2J\033[3J\033[H')
+        sys.stdout.flush()
+
+        # 3. Mulai jalankan Engine Manager
         manager = Manager(
             selected,
             config,
