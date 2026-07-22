@@ -425,26 +425,30 @@ def get_link_for_pkg(pkg, config):
         return config.get("ps_tiap_akun", {}).get(pkg, "").strip()
     return ""
 
-# Fungsi ini cuma dipakai buat RECOVERY pas script udah jalan (oleh watchdog)
+# Fungsi ini SEKARANG murni dipakai buat RECOVERY pas script udah jalan di Dashboard
 def join_private_server(package, config):
     link = get_link_for_pkg(package, config)
     if not link: return
 
-    if not SILENT_MODE: info(f"Menunggu {package} siap menerima link (30s)...")
-    time.sleep(30) 
+    # Nunggu 40 detik biarin clone yang abis mati ini masuk ke Main Menu
+    if not SILENT_MODE: info(f"Menunggu {package} siap menerima link (40s)...")
+    time.sleep(40) 
 
-    if not SILENT_MODE: info("Menggeser game ke background (Stealth Warm Boot)...")
-    subprocess.run(["su", "-c", "am start -n com.termux/com.termux.app.TermuxActivity"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(3)
+    # NGGAK ADA LAGI PERINTAH MANGGIL TERMUX DI SINI
+    # Biar clone lain yang lagi farming ngga ikutan ke-minimize/hilang.
 
+    # Langsung tembak paksa link-nya ke target
     if not SILENT_MODE: info(f"Menembak Link Server ke {package}...")
     cmd = f"su -c \"am start -f 0x14000000 -a android.intent.action.VIEW -d '{link}' {package}\""
     
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(12)
+    
+    # Double Tap
+    time.sleep(15)
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return True
 
+    return True
+    
 # ==========================================
 # MAIN
 # ==========================================
